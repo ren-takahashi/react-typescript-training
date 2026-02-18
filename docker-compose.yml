@@ -1,0 +1,29 @@
+# 【Docker】Docker Compose の設定ファイル
+services:
+  app:
+    # このディレクトリの Dockerfile からイメージをビルド
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # コンテナ名を明示的に設定
+    container_name: react-training
+
+    # ホストの 3000 番ポートをコンテナの 3000 番ポートに接続
+    ports:
+      - "3000:3000"
+
+    # ホストのファイルをコンテナにマウント（変更がリアルタイムに反映される）
+    volumes:
+      - ./app:/workspace/app
+
+    # 環境変数
+    environment:
+      - NODE_ENV=development
+
+    # コンテナを起動し続ける
+    tty: true
+
+# 【Docker】名前付きボリューム（node_modules をホストと分離するため）
+volumes:
+  node_modules:
