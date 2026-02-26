@@ -1,0 +1,396 @@
+# Chapter 01: プロジェクト構成と各ファイルの役割
+
+## この章のゴール
+
+- `create-next-app` が生成したファイル・フォルダの役割を理解する
+- 「このファイルは何のためにあるのか」を説明できるようになる
+- 現場のプロジェクトを開いたときに、迷わずファイルを探せるようになる
+
+## この章で扱う技術
+
+| タグ | 内容 |
+|------|------|
+| `【Next.js】` | App Router のディレクトリ規約 |
+| `【TypeScript】` | tsconfig.json の役割 |
+| `【Node.js】` | package.json と npm の仕組み |
+
+---
+
+## 1-1. プロジェクト全体の構成
+
+Chapter 00 で生成した `app/` ディレクトリの中身を見てみましょう。
+
+```bash
+# コンテナ内で実行
+cd /workspace/app
+ls -la
+```
+
+以下のような構成になっているはずです（主要なものを抜粋）。
+
+```
+app/
+├── node_modules/        ← 【Node.js】外部ライブラリの実体
+├── public/              ← 【Next.js】静的ファイル（画像など）
+├── src/                 ← ソースコード
+│   └── app/             ← 【Next.js】App Router のルートディレクトリ
+│       ├── favicon.ico  ← ブラウザタブのアイコン
+│       ├── globals.css  ← グローバルなスタイル
+│       ├── layout.tsx   ← 【Next.js】共通レイアウト
+│       ├── page.tsx     ← 【Next.js】トップページ
+│       └── page.module.css ← 【Next.js】ページ固有のスタイル
+├── .eslintrc.json       ← 【Node.js】コード品質チェックの設定
+├── .gitignore           ← 【Git】Gitで管理しないファイルの設定
+├── next-env.d.ts        ← 【Next.js / TypeScript】型定義の参照
+├── next.config.ts       ← 【Next.js】Next.js の設定ファイル
+├── package-lock.json    ← 【Node.js】依存関係の厳密なバージョン記録
+├── package.json         ← 【Node.js】プロジェクトの設定・依存関係
+├── README.md            ← プロジェクトの説明
+└── tsconfig.json        ← 【TypeScript】TypeScript の設定
+```
+
+それぞれ詳しく見ていきましょう。
+
+---
+
+## 1-2. package.json 【Node.js】
+
+**役割**: プロジェクトの「名刺」のようなファイル。プロジェクトの情報、依存ライブラリ、実行コマンドが書かれています。
+
+```bash
+cat package.json
+```
+
+中身の主要部分を見てみましょう。
+
+```json
+{
+  "name": "app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "react": "^19.x.x",
+    "react-dom": "^19.x.x",
+    "next": "15.x.x"
+  },
+  "devDependencies": {
+    "typescript": "^5.x.x",
+    "@types/node": "^20.x.x",
+    "@types/react": "^19.x.x",
+    "@types/react-dom": "^19.x.x"
+  }
+}
+```
+
+### 各セクションの意味
+
+| セクション | 説明 |
+|-----------|------|
+| `scripts` | `npm run <名前>` で実行できるコマンドの定義。`npm run dev` で開発サーバーが起動する |
+| `dependencies` | 本番でも必要なライブラリ（React, Next.js） |
+| `devDependencies` | 開発時のみ必要なライブラリ（TypeScript, 型定義ファイル） |
+
+### PHP と比較すると
+
+| Node.js / npm | PHP / Composer |
+|--------------|----------------|
+| `package.json` | `composer.json` |
+| `package-lock.json` | `composer.lock` |
+| `node_modules/` | `vendor/` |
+| `npm install` | `composer install` |
+| `npm run dev` | （php artisan serve など） |
+
+---
+
+## 1-3. tsconfig.json 【TypeScript】
+
+**役割**: TypeScript コンパイラの設定ファイル。「TypeScript をどうコンパイルするか」のルールを定義します。
+
+```bash
+cat tsconfig.json
+```
+
+### 重要な設定項目
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2017",           // コンパイル後のJSバージョン
+    "lib": ["dom", "dom.iterable", "esnext"],  // 使用可能なAPIの定義
+    "strict": true,                // 厳密な型チェックを有効化
+    "module": "esnext",            // モジュールシステム
+    "jsx": "preserve",            // JSXの処理方法（Next.jsが後で処理する）
+    "paths": {
+      "@/*": ["./src/*"]           // @/ でsrcフォルダを参照できるエイリアス
+    }
+  }
+}
+```
+
+### ポイント
+
+- `"strict": true` が **非常に重要**。これにより TypeScript の型チェックが厳密になり、コードの安全性が格段に上がります
+- `"paths"` のエイリアス設定により、`import Xxx from '@/components/Xxx'` のように `@/` で `src/` フォルダからの相対パスでインポートできます
+
+> **💡 PHP と比較**: PHP の型宣言（`function foo(int $x): string`）に似ていますが、TypeScript はすべての変数・引数・戻り値に型を付けられるのが特徴です。`strict: true` は PHP でいえば `declare(strict_types=1)` に近い概念です。
+
+---
+
+## 1-4. next.config.ts 【Next.js】
+
+**役割**: Next.js フレームワーク固有の設定ファイル。
+
+```bash
+cat next.config.ts
+```
+
+```typescript
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+```
+
+初期状態ではほぼ空ですが、プロジェクトが成長すると以下のような設定が追加されます。
+
+- 画像の外部ドメインの許可設定
+- リダイレクト設定
+- 環境変数の公開設定
+- etc.
+
+---
+
+## 1-5. src/app/ ディレクトリ 【Next.js】
+
+ここが **最も重要** なディレクトリです。Next.js の **App Router** という仕組みの中核です。
+
+### App Router とは？
+
+**【Next.js】** App Router は、 **ファイルの配置場所がそのまま URL になる** というルーティングの仕組みです。
+
+```
+src/app/page.tsx          →  http://localhost:3000/
+src/app/about/page.tsx    →  http://localhost:3000/about
+src/app/users/page.tsx    →  http://localhost:3000/users
+src/app/users/[id]/page.tsx → http://localhost:3000/users/123
+```
+
+### 特別な意味を持つファイル名 【Next.js】
+
+Next.js の App Router では、以下のファイル名に特別な意味があります。
+
+| ファイル名 | 役割 |
+|-----------|------|
+| `page.tsx` | そのディレクトリの「ページ」。URL に対応する画面の本体 |
+| `layout.tsx` | そのディレクトリ以下で共有される「レイアウト」（ヘッダー、サイドバーなど） |
+| `loading.tsx` | ページ読み込み中に表示される UI |
+| `error.tsx` | エラー発生時に表示される UI |
+| `not-found.tsx` | 404 ページ |
+
+> **📝 注意**: これらのファイル名は **Next.js の規約** であり、React 自体にはこのようなルールはありません。React 単体ではルーティングの仕組みがなく、別途 React Router などのライブラリが必要ですが、Next.js がこれを標準で提供しています。  
+※ ルーティング = 「リクエスト（URL + HTTPメソッド）を見て、どの処理を呼び出すか決める」仕組み
+
+---
+
+## 1-6. layout.tsx の中身を読む 【Next.js / React】
+
+```bash
+cat src/app/layout.tsx
+```
+
+```tsx
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+### 行ごとの解説
+
+```tsx
+import type { Metadata } from "next";
+// 【TypeScript / Next.js】
+// `import type` は TypeScript の構文で「型だけをインポート」する意味。
+// `Metadata` は Next.js が提供する型で、ページのメタ情報の形を定義している。
+```
+
+```tsx
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+// 【Next.js】
+// この変数を export すると、Next.js が自動的に <head> タグ内の
+// <title> や <meta name="description"> に反映してくれる。
+// React 単体にはこの仕組みはない。
+```
+
+```tsx
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+// 【React / TypeScript】
+// `function RootLayout(...)` → React のコンポーネント（関数コンポーネント）
+// `{ children }` → 分割代入（JavaScript の構文）で Props から children を取り出す
+// `: Readonly<{ children: React.ReactNode }>` → TypeScript の型注釈
+//   - Readonly<...>: 読み取り専用にする（TypeScript）
+//   - children: React.ReactNode: 子要素の型（React が定義）
+```
+
+```tsx
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+// 【React】
+// JSX（JavaScript XML）という構文。HTMLのように見えるが、実はJavaScriptの式。
+// {children} で、このレイアウトに包まれるページの中身が差し込まれる。
+```
+
+---
+
+## 1-7. page.tsx の中身を読む 【React / Next.js】
+
+```bash
+cat src/app/page.tsx
+```
+
+`page.tsx` はトップページ（`/`）の中身を定義しています。  
+この中身が、先ほどの `layout.tsx` の `{children}` の部分に差し込まれて表示されます。
+
+### 表示の流れ
+
+```
+layout.tsx（全体の枠組み: <html>, <body>）
+  └── page.tsx（ページ固有の中身）
+```
+
+これは Next.js が自動的に行う処理であり、自分で `layout.tsx` の中から `page.tsx` を呼び出すコードを書く必要はありません。
+
+---
+
+## 1-8. public/ ディレクトリ 【Next.js】
+
+```bash
+ls public/
+```
+
+`public/` に置いたファイルは、URL で直接アクセスできます。
+
+例: `public/logo.png` → `http://localhost:3000/logo.png`
+
+画像やフォント、`robots.txt` など、**そのまま配信したい静的ファイル**を置く場所です。
+
+---
+
+## 1-9. node_modules/ 【Node.js】
+
+**`npm install` で取得したライブラリの実体** が格納されるフォルダです。
+
+- 中身は数万ファイルに及ぶことがあり、直接触ることはほぼありません
+- Git で管理しない（`.gitignore` に含まれている）
+- `package.json` と `package-lock.json` があれば `npm install` で再現できる
+
+> **💡 PHP と比較**: `vendor/` ディレクトリに相当します。
+
+---
+
+## 1-10. 拡張子について
+
+| 拡張子 | 説明 | 技術 |
+|-------|------|------|
+| `.ts` | TypeScript ファイル | 【TypeScript】 |
+| `.tsx` | TypeScript + JSX（HTMLライクな構文）が使えるファイル | 【TypeScript + React】 |
+| `.js` | JavaScript ファイル | 【JavaScript】 |
+| `.jsx` | JavaScript + JSX が使えるファイル | 【JavaScript + React】 |
+| `.css` | スタイルシート | 【CSS】 |
+| `.module.css` | CSS Modules（コンポーネント単位でスコープされるCSS） | 【Next.js が標準サポート】 |
+
+現場では **ほぼ `.tsx` と `.ts` を使う** と考えてください。  
+コンポーネント（UIを含むファイル）は `.tsx`、UIを含まないユーティリティ関数や型定義は `.ts` を使います。
+
+---
+
+## 1-11. 実験：page.tsx を書き換えてみよう
+
+実際にファイルを編集して、変更がブラウザに反映されることを確認しましょう。
+
+**ファイル: `src/app/page.tsx`**
+
+中身を以下に **すべて置き換え** てください。
+
+```tsx
+// 【React】関数コンポーネント
+// 【Next.js】page.tsx という名前で export default すると、ページとして認識される
+export default function Home() {
+  return (
+    <div>
+      <h1>Hello, Next.js + React + TypeScript!</h1>
+      <p>環境構築が完了しました。ここから学習を始めましょう。</p>
+    </div>
+  );
+}
+```
+
+保存してブラウザを確認してください。  
+ページが自動で更新され、「Hello, Next.js + React + TypeScript!」が表示されるはずです。
+
+### 確認ポイント
+
+- ファイルを保存するだけで変更が反映される → **【Next.js】ホットリロード** の機能
+- `page.tsx` を書き換えると画面が変わる → **【Next.js】ファイルベースルーティング** でこのファイルがトップページに対応している
+- 関数がHTMLを返している → **【React】JSX** を使った **関数コンポーネント**
+
+---
+
+## この章のまとめ
+
+| ファイル / フォルダ | 技術 | 一言で |
+|-------------------|------|-------|
+| `package.json` | 【Node.js】 | プロジェクトの設定と依存関係 |
+| `tsconfig.json` | 【TypeScript】 | TypeScript コンパイラの設定 |
+| `next.config.ts` | 【Next.js】 | Next.js 固有の設定 |
+| `src/app/` | 【Next.js】 | App Router のルートディレクトリ |
+| `page.tsx` | 【Next.js + React】 | ページの中身を定義 |
+| `layout.tsx` | 【Next.js + React】 | ページ共通のレイアウト |
+| `public/` | 【Next.js】 | 静的ファイルの配置場所 |
+| `node_modules/` | 【Node.js】 | ライブラリの実体 |
+
+### 重要な概念
+
+- **App Router**: ファイルの配置 = URL（Next.js の機能）
+- **page.tsx / layout.tsx**: Next.js が定めた特別なファイル名
+- **JSX / TSX**: HTML のように見えるが JavaScript / TypeScript の構文（React の機能）
+- **拡張子の使い分け**: UIあり → `.tsx`、UIなし → `.ts`
+
+---
+
+**前の章**: [Chapter 00: 環境構築](./00-environment-setup.md)  
+**次の章**: [Chapter 02: TypeScript の基本的な型と構文](./02-typescript-basics.md)
