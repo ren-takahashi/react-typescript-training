@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "title": "React Hooks 入門",
+    "content": "useState と useEffect の基本的な使い方を解説します。",
+    "authorId": 1,
+    "publishedAt": "2025-01-15",
+    "tags": ["React", "Hooks", "入門"]
+  },
+  {
+    "id": 2,
+    "title": "TypeScript の型システム",
+    "content": "TypeScript の型システムの基本と実践的な使い方を紹介します。",
+    "authorId": 2,
+    "publishedAt": "2025-02-20",
+    "tags": ["TypeScript", "型"]
+  },
+  {
+    "id": 3,
+    "title": "Next.js App Router 完全ガイド",
+    "content": "Next.js 14 以降の App Router の使い方を徹底解説します。",
+    "authorId": 1,
+    "publishedAt": "2025-03-10",
+    "tags": ["Next.js", "App Router"]
+  }
+]

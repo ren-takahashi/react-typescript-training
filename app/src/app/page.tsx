@@ -1,78 +1,34 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+// 【Next.js】src/app/page.tsx → URL: /
+import Link from "next/link"; // 【Next.js】ページ遷移用コンポーネント
+import NavigationButton from "../components/NavigationButton";
+import Navigation from "../components/Navigation"; // 追加
 
 export default function Home() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div>
+      {/* 【Next.js】現在地をハイライトするナビゲーション */}
+      <Navigation />
+      
+      <div style={{ padding: "16px" }}>
+        <h1>ホーム</h1>
+        <p>Next.js のルーティングを学習中です。</p>
+
+        {/* 【Next.js】useRouter を使ったナビゲーションボタン */}
+        <div style={{ marginTop: "16px" }}>
+          <h3>プログラムによる遷移</h3>
+          <NavigationButton />
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        <nav style={{ marginTop: "16px" }}>
+          <h2>ページ一覧</h2>
+          <ul>
+            {/* 【Next.js】Link コンポーネントでページ遷移 */}
+            <li><Link href="/about">About ページ</Link></li>
+            <li><Link href="/users">ユーザー一覧</Link></li>
+            <li><Link href="/settings">設定</Link></li>
+          </ul>
+        </nav>
+      </div>
     </div>
   );
 }
-
-// お試し書き換え用のコード
-// 【React】関数コンポーネント
-// 【Next.js】page.tsx という名前で export default すると、ページとして認識される
-// export default function Home() {
-//   return (
-//     <div>
-//       <h1>Hello, Next.js + React + TypeScript!</h1>
-//       <p>環境構築が完了しました。ここから学習を始めましょう。</p>
-//     </div>
-//   );
-// }
