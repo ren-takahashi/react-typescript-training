@@ -1,0 +1,26 @@
+[
+  {
+    "id": "1",
+    "title": "Next.js のチュートリアルを完了する",
+    "description": "公式ドキュメントの App Router セクションを一通り読む",
+    "completed": false,
+    "createdAt": "2024-01-15T09:00:00.000Z",
+    "updatedAt": "2024-01-15T09:00:00.000Z"
+  },
+  {
+    "id": "2",
+    "title": "TypeScript の型定義を練習する",
+    "description": "interface と type の使い分けを理解し、ユーティリティ型を試す",
+    "completed": true,
+    "createdAt": "2024-01-14T10:30:00.000Z",
+    "updatedAt": "2024-01-15T08:00:00.000Z"
+  },
+  {
+    "id": "3",
+    "title": "React Hooks を復習する",
+    "description": "useState, useEffect, useRef, useMemo, useCallback を一通り書く",
+    "completed": false,
+    "createdAt": "2024-01-16T14:00:00.000Z",
+    "updatedAt": "2024-01-16T14:00:00.000Z"
+  }
+]

@@ -3,10 +3,7 @@
 ## この章のゴール
 
 これまでの全章で学んだ知識を組み合わせて、**CRUD 機能を持つ Todo アプリ**を  
-ゼロから実装します。
-
-完成後は「どのファイルがどの役割か」「どのコードがどの技術か」を  
-**自分の言葉で説明できる**ことを目指します。
+**段階的に** 実装。
 
 ### 使う技術・概念の一覧
 
@@ -26,6 +23,29 @@
 
 ---
 
+## 学習の進め方（重要！）
+
+### 📝 段階的な実装方式
+
+このチュートリアルは **5つのステップ** に分かれています：
+
+```
+ステップ1: Todo を表示する（最小限）
+  ↓ 動作確認 ✅
+ステップ2: Todo を追加する
+  ↓ 動作確認 ✅
+ステップ3: 完了トグル・削除機能
+  ↓ 動作確認 ✅
+ステップ4: フィルター機能
+  ↓ 動作確認 ✅
+ステップ5: 詳細ページと編集機能
+  ↓ 完成
+```
+
+**各ステップで必ず動作確認してから次へ進んでください。**
+
+---
+
 ## 1. 完成イメージ
 
 ```
@@ -33,7 +53,7 @@
 /todos/[id]     → Todo 詳細・編集ページ
 ```
 
-### 機能一覧
+### 最終的な機能一覧
 
 - ✅ Todo の一覧表示
 - ✅ Todo の新規追加（タイトル + 説明）
@@ -44,7 +64,7 @@
 
 ---
 
-## 2. ファイル構成
+## 2. 最終的なファイル構成
 
 ```
 src/
@@ -74,11 +94,13 @@ src/
 
 ---
 
-## 3. 型定義を作る 【TypeScript】
+# ステップ1: Todo を表示する（最小限）
 
-> **📝 PHP との対応**: PHP の Entity / DTO クラスに相当します。
+まずは「Todo の一覧を表示する」だけの最小限の機能を作ります。
 
-`src/types/index.ts` を以下の内容に**書き換え**（または追記）します。
+## 1-1. 型定義を作る
+
+`src/types/index.ts` を以下の内容に**書き換え**（または追記）:
 
 ```typescript
 // Todo の型定義
@@ -87,29 +109,15 @@ export interface Todo {
   title: string;
   description: string;
   completed: boolean;
-  createdAt: string;   // ISO 8601 形式
+  createdAt: string;
   updatedAt: string;
 }
 
-// 新規作成時の入力（id, createdAt, updatedAt はサーバーが付与）
-export type CreateTodoInput = Pick<Todo, "title" | "description">;
-
-// 更新時の入力（部分更新を許容）
-export type UpdateTodoInput = Partial<Pick<Todo, "title" | "description" | "completed">>;
-
-// フィルターの種類
+// フィルターの種類（後で使う）
 export type TodoFilter = "all" | "active" | "completed";
 ```
 
-**ポイント解説**:
-
-- `Pick<Todo, "title" | "description">` → Todo から `title` と `description` だけを取り出した型（Ch02 で学んだユーティリティ型）
-- `Partial<...>` → すべてのプロパティをオプショナル（`?`）にする
-- これにより **「新規作成には title 必須」「更新は部分更新OK」** を型で表現
-
----
-
-## 4. モックデータを用意する
+## 1-2. モックデータを作る
 
 `src/data/todos.json`:
 
@@ -142,46 +150,241 @@ export type TodoFilter = "all" | "active" | "completed";
 ]
 ```
 
----
-
-## 5. API Routes を作る 【Next.js】
-
-### 5-1. 一覧取得 + 新規作成
+## 1-3. API を作る（GET のみ）
 
 `src/app/api/todos/route.ts`:
+
+```typescript
+import { NextResponse } from "next/server";
+import { Todo } from "@/types";
+import initialTodos from "@/data/todos.json";
+
+// メモリ上にデータを保持
+let todos: Todo[] = [...initialTodos];
+
+// GET /api/todos - 一覧取得
+export function GET() {
+  const sorted = [...todos].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  return NextResponse.json(sorted);
+}
+```
+
+## 1-4. シンプルなコンポーネントを作る
+
+### Header コンポーネント
+
+`src/components/Header.tsx`:
+
+```tsx
+import Link from "next/link";
+
+export default function Header() {
+  return (
+    <header style={{
+      backgroundColor: "#1a1a2e",
+      color: "#ffffff",
+      padding: "16px 24px",
+    }}>
+      <Link href="/todos" style={{ color: "#ffffff", textDecoration: "none" }}>
+        <h1 style={{ margin: 0, fontSize: "20px" }}>📝 Todo App</h1>
+      </Link>
+    </header>
+  );
+}
+```
+
+### TodoList コンポーネント（シンプル版）
+
+`src/components/TodoList.tsx`:
+
+```tsx
+"use client";
+
+import { Todo } from "@/types";
+
+interface TodoListProps {
+  todos: Todo[];
+}
+
+export default function TodoList({ todos }: TodoListProps) {
+  if (todos.length === 0) {
+    return <p style={{ textAlign: "center", color: "#888", padding: "32px 0" }}>Todo がありません</p>;
+  }
+
+  return (
+    <div style={{ border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden" }}>
+      {todos.map((todo) => (
+        <div
+          key={todo.id}
+          style={{
+            padding: "12px 16px",
+            borderBottom: "1px solid #eee",
+            backgroundColor: todo.completed ? "#f8f9fa" : "#ffffff",
+          }}
+        >
+          <div style={{
+            textDecoration: todo.completed ? "line-through" : "none",
+            color: todo.completed ? "#999" : "#333",
+            fontSize: "16px",
+            fontWeight: "bold",
+          }}>
+            {todo.title}
+          </div>
+          {todo.description && (
+            <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#888" }}>
+              {todo.description}
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## 1-5. ページを作る
+
+### layout.tsx を更新
+
+`src/app/layout.tsx`:
+
+```tsx
+import type { Metadata } from "next";
+import Header from "@/components/Header";
+
+export const metadata: Metadata = {
+  title: "Todo App",
+  description: "React + TypeScript + Next.js 学習用 Todo アプリ",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="ja">
+      <body style={{ margin: 0, fontFamily: "sans-serif" }}>
+        <Header />
+        <main style={{ maxWidth: "720px", margin: "0 auto", padding: "24px" }}>
+          {children}
+        </main>
+      </body>
+    </html>
+  );
+}
+```
+
+### page.tsx を更新（リダイレクト）
+
+`src/app/page.tsx`:
+
+```tsx
+import { redirect } from "next/navigation";
+
+export default function Home() {
+  redirect("/todos");
+}
+```
+
+### Todos ページ（シンプル版）
+
+`src/app/todos/page.tsx`:
+
+```tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { Todo } from "@/types";
+import TodoList from "@/components/TodoList";
+
+export default function TodosPage() {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTodos() {
+      const res = await fetch("/api/todos");
+      const data: Todo[] = await res.json();
+      setTodos(data);
+      setIsLoading(false);
+    }
+    fetchTodos();
+  }, []);
+
+  return (
+    <div>
+      <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
+      {isLoading ? (
+        <p style={{ textAlign: "center", color: "#888" }}>読み込み中...</p>
+      ) : (
+        <TodoList todos={todos} />
+      )}
+    </div>
+  );
+}
+```
+
+## ✅ ステップ1の動作確認
+
+```bash
+# 開発サーバーを起動
+npm run dev
+```
+
+ブラウザで `http://localhost:3000` にアクセス:
+- ✅ `/todos` にリダイレクトされる
+- ✅ 3件の Todo が表示される
+- ✅ 完了済みの Todo に取り消し線がつく
+
+**動作確認できたら次へ！**
+
+---
+
+# ステップ2: Todo を追加する
+
+次に「Todo を追加する」機能を実装します。
+
+## 2-1. 型定義を追加
+
+`src/types/index.ts` に追記:
+
+```typescript
+// 新規作成時の入力
+export type CreateTodoInput = Pick<Todo, "title" | "description">;
+```
+
+## 2-2. API に POST を追加
+
+`src/app/api/todos/route.ts` に POST を追加:
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
 import { Todo, CreateTodoInput } from "@/types";
 import initialTodos from "@/data/todos.json";
 
-// メモリ上にデータを保持（サーバー再起動でリセットされる）
 let todos: Todo[] = [...initialTodos];
 
-// GET /api/todos
 export function GET() {
-  // 作成日の降順（新しい順）で返す
   const sorted = [...todos].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
   return NextResponse.json(sorted);
 }
 
-// POST /api/todos
+// 👇 追加
 export async function POST(request: NextRequest) {
   const body: CreateTodoInput = await request.json();
 
-  // バリデーション
   if (!body.title || body.title.trim() === "") {
-    return NextResponse.json(
-      { error: "タイトルは必須です" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "タイトルは必須です" }, { status: 400 });
   }
 
   const now = new Date().toISOString();
   const newTodo: Todo = {
-    id: String(Date.now()),  // 簡易的なID生成
+    id: String(Date.now()),
     title: body.title.trim(),
     description: body.description?.trim() ?? "",
     completed: false,
@@ -194,45 +397,197 @@ export async function POST(request: NextRequest) {
 }
 ```
 
-> **📝 PHP との対応**:  
-> `GET()` = Laravel の `index()` メソッド  
-> `POST()` = Laravel の `store()` メソッド  
-> メモリ上の配列 = DB テーブルの代わり
+## 2-3. TodoForm コンポーネントを作る
 
-### 5-2. 個別取得 + 更新 + 削除
+`src/components/TodoForm.tsx`:
 
-`src/app/api/todos/[id]/route.ts`:
+```tsx
+"use client";
+
+import { useState, FormEvent } from "react";
+import { CreateTodoInput } from "@/types";
+
+interface TodoFormProps {
+  onAdd: (input: CreateTodoInput) => Promise<void>;
+}
+
+export default function TodoForm({ onAdd }: TodoFormProps) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (title.trim() === "") {
+      setError("タイトルを入力してください");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onAdd({ title, description });
+      setTitle("");
+      setDescription("");
+    } catch {
+      setError("追加に失敗しました");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginBottom: "24px" }}>
+      <h2 style={{ fontSize: "18px", marginBottom: "12px" }}>新しい Todo を追加</h2>
+
+      <div style={{ marginBottom: "8px" }}>
+        <input
+          type="text"
+          placeholder="タイトル（必須）"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px",
+            border: error ? "2px solid #e74c3c" : "1px solid #ccc",
+            borderRadius: "4px",
+            fontSize: "16px",
+            boxSizing: "border-box",
+          }}
+        />
+        {error && <p style={{ color: "#e74c3c", fontSize: "13px", marginTop: "4px" }}>{error}</p>}
+      </div>
+
+      <div style={{ marginBottom: "8px" }}>
+        <input
+          type="text"
+          placeholder="説明（任意）"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+            fontSize: "16px",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        style={{
+          padding: "10px 24px",
+          backgroundColor: "#2ecc71",
+          color: "#ffffff",
+          border: "none",
+          borderRadius: "4px",
+          fontSize: "16px",
+          cursor: isSubmitting ? "not-allowed" : "pointer",
+          opacity: isSubmitting ? 0.6 : 1,
+        }}
+      >
+        {isSubmitting ? "追加中..." : "追加する"}
+      </button>
+    </form>
+  );
+}
+```
+
+## 2-4. ページに TodoForm を追加
+
+`src/app/todos/page.tsx` を更新:
+
+```tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { Todo, CreateTodoInput } from "@/types";
+import TodoForm from "@/components/TodoForm";
+import TodoList from "@/components/TodoList";
+
+export default function TodosPage() {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTodos() {
+      const res = await fetch("/api/todos");
+      const data: Todo[] = await res.json();
+      setTodos(data);
+      setIsLoading(false);
+    }
+    fetchTodos();
+  }, []);
+
+  // 👇 追加
+  const handleAdd = async (input: CreateTodoInput) => {
+    const res = await fetch("/api/todos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error("追加に失敗しました");
+    const newTodo: Todo = await res.json();
+    setTodos((prev) => [newTodo, ...prev]);
+  };
+
+  return (
+    <div>
+      <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
+      
+      {/* 👇 追加 */}
+      <TodoForm onAdd={handleAdd} />
+
+      {isLoading ? (
+        <p style={{ textAlign: "center", color: "#888" }}>読み込み中...</p>
+      ) : (
+        <TodoList todos={todos} />
+      )}
+    </div>
+  );
+}
+```
+
+## ✅ ステップ2の動作確認
+
+- ✅ タイトルを入力して「追加する」→ リストに追加される
+- ✅ タイトル未入力で「追加する」→ エラーメッセージ表示
+- ✅ 追加した Todo がリストの先頭に表示される
+
+**動作確認できたら次へ！**
+
+---
+
+# ステップ3: 完了トグル・削除機能
+
+Todo の基本的な操作を追加します。
+
+## 3-1. 型定義を追加
+
+`src/types/index.ts` に追記:
+
+```typescript
+// 更新時の入力
+export type UpdateTodoInput = Partial<Pick<Todo, "title" | "description" | "completed">>;
+```
+
+## 3-2. API を追加
+
+`src/app/api/todos/[id]/route.ts` を新規作成:
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
 import { Todo, UpdateTodoInput } from "@/types";
 import initialTodos from "@/data/todos.json";
 
-// ⚠️ 注意: この変数は route.ts と共有されません（モジュールが別）
-// 本来は DB や外部ストアを使うが、学習用なので簡易的にここでも初期化
 let todos: Todo[] = [...initialTodos];
 
-// 共有ストアにするための関数（後述の改善で差し替え可能）
-// ここでは簡易版として同じ初期データを使う
-
-// GET /api/todos/[id]
-export function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  return params.then(({ id }) => {
-    const todo = todos.find((t) => t.id === id);
-    if (!todo) {
-      return NextResponse.json(
-        { error: "Todo が見つかりません" },
-        { status: 404 }
-      );
-    }
-    return NextResponse.json(todo);
-  });
-}
-
-// PATCH /api/todos/[id]
+// PATCH /api/todos/[id] - 更新
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -241,10 +596,7 @@ export async function PATCH(
   const index = todos.findIndex((t) => t.id === id);
 
   if (index === -1) {
-    return NextResponse.json(
-      { error: "Todo が見つかりません" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Todo が見つかりません" }, { status: 404 });
   }
 
   const body: UpdateTodoInput = await request.json();
@@ -260,7 +612,7 @@ export async function PATCH(
   return NextResponse.json(updated);
 }
 
-// DELETE /api/todos/[id]
+// DELETE /api/todos/[id] - 削除
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -269,10 +621,7 @@ export async function DELETE(
   const index = todos.findIndex((t) => t.id === id);
 
   if (index === -1) {
-    return NextResponse.json(
-      { error: "Todo が見つかりません" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Todo が見つかりません" }, { status: 404 });
   }
 
   todos.splice(index, 1);
@@ -280,114 +629,156 @@ export async function DELETE(
 }
 ```
 
-> **📝 PHP との対応**:  
-> `GET` = `show()` / `PATCH` = `update()` / `DELETE` = `destroy()`  
-> `params.id` = Laravel のルートパラメータ `$id`
+## 3-3. TodoItem コンポーネントを作る
 
-### 5-3. データ共有の改善（オプション）
+`src/components/TodoItem.tsx`:
 
-上記の 2 ファイルではモジュールが分かれているため、データが共有されません。  
-これを解決するには **共有ストアモジュール** を作ります。
-
-`src/lib/todoStore.ts`:
-
-```typescript
-import { Todo } from "@/types";
-import initialTodos from "@/data/todos.json";
-
-// アプリ全体で共有されるインメモリストア
-// （サーバー再起動でリセットされる）
-let todos: Todo[] = [...initialTodos];
-
-export function getTodos(): Todo[] {
-  return todos;
-}
-
-export function setTodos(newTodos: Todo[]): void {
-  todos = newTodos;
-}
-```
-
-**改善後の使い方**:
-
-```typescript
-// route.ts 内で
-import { getTodos, setTodos } from "@/lib/todoStore";
-
-export function GET() {
-  const todos = getTodos();
-  // ...
-}
-
-export async function POST(request: NextRequest) {
-  const todos = getTodos();
-  // ... newTodo を作成
-  setTodos([...todos, newTodo]);
-  // ...
-}
-```
-
-> 各 API ファイルを `todoStore` を使う形に書き換えれば、  
-> 作成・更新・削除がすべてのエンドポイントに反映されます。
-
----
-
-## 6. カスタム Hooks を作る 【React】
-
-### 6-1. useTodos — Todo の CRUD ロジック
-
-`src/hooks/useTodos.ts`:
-
-```typescript
+```tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Todo, CreateTodoInput, UpdateTodoInput, TodoFilter } from "@/types";
+import { Todo } from "@/types";
 
-export function useTodos() {
+interface TodoItemProps {
+  todo: Todo;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+
+export default function TodoItem({ todo, onToggle, onDelete }: TodoItemProps) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        padding: "12px 16px",
+        borderBottom: "1px solid #eee",
+        backgroundColor: todo.completed ? "#f8f9fa" : "#ffffff",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={todo.completed}
+        onChange={() => onToggle(todo.id)}
+        style={{ width: "20px", height: "20px", cursor: "pointer" }}
+      />
+
+      <div style={{ flex: 1 }}>
+        <div
+          style={{
+            textDecoration: todo.completed ? "line-through" : "none",
+            color: todo.completed ? "#999" : "#333",
+            fontSize: "16px",
+            fontWeight: "bold",
+          }}
+        >
+          {todo.title}
+        </div>
+        {todo.description && (
+          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#888" }}>
+            {todo.description}
+          </p>
+        )}
+      </div>
+
+      <button
+        onClick={() => {
+          if (window.confirm("本当に削除しますか？")) {
+            onDelete(todo.id);
+          }
+        }}
+        style={{
+          padding: "6px 12px",
+          backgroundColor: "#e74c3c",
+          color: "#ffffff",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+          fontSize: "13px",
+        }}
+      >
+        削除
+      </button>
+    </div>
+  );
+}
+```
+
+## 3-4. TodoList を更新
+
+`src/components/TodoList.tsx` を更新:
+
+```tsx
+"use client";
+
+import { Todo } from "@/types";
+import TodoItem from "./TodoItem";
+
+interface TodoListProps {
+  todos: Todo[];
+  onToggle: (id: string) => void;  // 👈 追加
+  onDelete: (id: string) => void;  // 👈 追加
+}
+
+export default function TodoList({ todos, onToggle, onDelete }: TodoListProps) {
+  if (todos.length === 0) {
+    return <p style={{ textAlign: "center", color: "#888", padding: "32px 0" }}>Todo がありません</p>;
+  }
+
+  return (
+    <div style={{ border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden" }}>
+      {todos.map((todo) => (
+        <TodoItem
+          key={todo.id}
+          todo={todo}
+          onToggle={onToggle}
+          onDelete={onDelete}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+## 3-5. ページにトグル・削除機能を追加
+
+`src/app/todos/page.tsx` を更新:
+
+```tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { Todo, CreateTodoInput } from "@/types";
+import TodoForm from "@/components/TodoForm";
+import TodoList from "@/components/TodoList";
+
+export default function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<TodoFilter>("all");
-
-  // ---------- 一覧取得 ----------
-  const fetchTodos = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/todos");
-      if (!res.ok) throw new Error("取得に失敗しました");
-      const data: Todo[] = await res.json();
-      setTodos(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "エラーが発生しました");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
+    async function fetchTodos() {
+      const res = await fetch("/api/todos");
+      const data: Todo[] = await res.json();
+      setTodos(data);
+      setIsLoading(false);
+    }
     fetchTodos();
-  }, [fetchTodos]);
+  }, []);
 
-  // ---------- 新規追加 ----------
-  const addTodo = useCallback(async (input: CreateTodoInput) => {
+  const handleAdd = async (input: CreateTodoInput) => {
     const res = await fetch("/api/todos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "追加に失敗しました");
-    }
+    if (!res.ok) throw new Error("追加に失敗しました");
     const newTodo: Todo = await res.json();
-    // 先頭に追加（新しい順）
     setTodos((prev) => [newTodo, ...prev]);
-  }, []);
+  };
 
-  // ---------- 完了トグル ----------
-  const toggleTodo = useCallback(async (id: string) => {
+  // 👇 追加
+  const handleToggle = async (id: string) => {
     const target = todos.find((t) => t.id === id);
     if (!target) return;
 
@@ -399,175 +790,44 @@ export function useTodos() {
     if (!res.ok) throw new Error("更新に失敗しました");
     const updated: Todo = await res.json();
     setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
-  }, [todos]);
+  };
 
-  // ---------- 更新 ----------
-  const updateTodo = useCallback(async (id: string, input: UpdateTodoInput) => {
-    const res = await fetch(`/api/todos/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    if (!res.ok) throw new Error("更新に失敗しました");
-    const updated: Todo = await res.json();
-    setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
-  }, []);
-
-  // ---------- 削除 ----------
-  const deleteTodo = useCallback(async (id: string) => {
-    const res = await fetch(`/api/todos/${id}`, {
-      method: "DELETE",
-    });
+  // 👇 追加
+  const handleDelete = async (id: string) => {
+    const res = await fetch(`/api/todos/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("削除に失敗しました");
     setTodos((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  // ---------- フィルター適用 ----------
-  const filteredTodos = todos.filter((todo) => {
-    if (filter === "active") return !todo.completed;
-    if (filter === "completed") return todo.completed;
-    return true; // "all"
-  });
-
-  // ---------- 集計 ----------
-  const counts = {
-    all: todos.length,
-    active: todos.filter((t) => !t.completed).length,
-    completed: todos.filter((t) => t.completed).length,
   };
 
-  return {
-    todos: filteredTodos,
-    counts,
-    isLoading,
-    error,
-    filter,
-    setFilter,
-    addTodo,
-    toggleTodo,
-    updateTodo,
-    deleteTodo,
-    refetch: fetchTodos,
-  };
-}
-```
-
-**ポイント解説**:
-
-- `useCallback` で関数をメモ化 → 子コンポーネントの不要な再レンダリングを防止（Ch07）
-- `useState` のジェネリクスで型安全（Ch05）
-- `useEffect` で初回データ取得（Ch06）
-- フィルターロジックもこの Hook に集約 → **コンポーネントはUIに集中**
-
-### 6-2. useForm — フォーム管理ロジック
-
-`src/hooks/useForm.ts`:
-
-```typescript
-"use client";
-
-import { useState, useCallback } from "react";
-
-interface UseFormOptions<T> {
-  initialValues: T;
-  validate?: (values: T) => Partial<Record<keyof T, string>>;
-  onSubmit: (values: T) => Promise<void> | void;
-}
-
-export function useForm<T extends Record<string, unknown>>({
-  initialValues,
-  validate,
-  onSubmit,
-}: UseFormOptions<T>) {
-  const [values, setValues] = useState<T>(initialValues);
-  const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleChange = useCallback((name: keyof T, value: T[keyof T]) => {
-    setValues((prev) => ({ ...prev, [name]: value }));
-    // 入力時にそのフィールドのエラーをクリア
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next[name];
-      return next;
-    });
-  }, []);
-
-  const handleSubmit = useCallback(async () => {
-    // バリデーション
-    if (validate) {
-      const validationErrors = validate(values);
-      const hasErrors = Object.keys(validationErrors).length > 0;
-      if (hasErrors) {
-        setErrors(validationErrors);
-        return;
-      }
-    }
-
-    setIsSubmitting(true);
-    try {
-      await onSubmit(values);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [values, validate, onSubmit]);
-
-  const reset = useCallback(() => {
-    setValues(initialValues);
-    setErrors({});
-  }, [initialValues]);
-
-  return {
-    values,
-    errors,
-    isSubmitting,
-    handleChange,
-    handleSubmit,
-    reset,
-    setValues,
-  };
-}
-```
-
----
-
-## 7. コンポーネントを作る 【React】
-
-### 7-1. Header（共通ヘッダー）
-
-`src/components/Header.tsx`:
-
-```tsx
-import Link from "next/link";
-
-// Server Component（状態を持たない純粋な表示）
-export default function Header() {
   return (
-    <header style={{
-      backgroundColor: "#1a1a2e",
-      color: "#ffffff",
-      padding: "16px 24px",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    }}>
-      <Link href="/todos" style={{ color: "#ffffff", textDecoration: "none" }}>
-        <h1 style={{ margin: 0, fontSize: "20px" }}>📝 Todo App</h1>
-      </Link>
-      <nav>
-        <Link
-          href="/todos"
-          style={{ color: "#e0e0e0", textDecoration: "none" }}
-        >
-          Todo 一覧
-        </Link>
-      </nav>
-    </header>
+    <div>
+      <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
+      <TodoForm onAdd={handleAdd} />
+      {isLoading ? (
+        <p style={{ textAlign: "center", color: "#888" }}>読み込み中...</p>
+      ) : (
+        <TodoList todos={todos} onToggle={handleToggle} onDelete={handleDelete} />
+      )}
+    </div>
   );
 }
 ```
 
-### 7-2. TodoFilter（フィルターボタン）
+## ✅ ステップ3の動作確認
+
+- ✅ チェックボックスをクリック → 完了/未完了が切り替わる
+- ✅ 「削除」ボタン → 確認ダイアログ → 削除される
+- ✅ 完了済みの Todo に取り消し線
+
+**動作確認できたら次へ！**
+
+---
+
+# ステップ4: フィルター機能
+
+Todo を絞り込む機能を追加します。
+
+## 4-1. TodoFilter コンポーネントを作る
 
 `src/components/TodoFilter.tsx`:
 
@@ -613,128 +873,185 @@ export default function TodoFilter({ current, counts, onChange }: TodoFilterProp
 }
 ```
 
-**ポイント解説**:
+## 4-2. ページにフィルターを追加
 
-- `FilterType` を `TodoFilter` と別名にしているのは、コンポーネント名と型名の衝突を避けるため
-- `FILTER_OPTIONS` を配列にして `map` でレンダリング → ボタンが増えてもコード変更は最小限（Ch03）
-
-### 7-3. TodoForm（新規追加フォーム）
-
-`src/components/TodoForm.tsx`:
+`src/app/todos/page.tsx` を更新:
 
 ```tsx
 "use client";
 
-import { useRef, FormEvent } from "react";
-import { useForm } from "@/hooks/useForm";
-import { CreateTodoInput } from "@/types";
+import { useState, useEffect } from "react";
+import { Todo, CreateTodoInput, TodoFilter as FilterType } from "@/types";
+import TodoForm from "@/components/TodoForm";
+import TodoList from "@/components/TodoList";
+import TodoFilter from "@/components/TodoFilter";
 
-interface TodoFormProps {
-  onAdd: (input: CreateTodoInput) => Promise<void>;
-}
+export default function TodosPage() {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterType>("all");  // 👈 追加
 
-export default function TodoForm({ onAdd }: TodoFormProps) {
-  const titleRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    async function fetchTodos() {
+      const res = await fetch("/api/todos");
+      const data: Todo[] = await res.json();
+      setTodos(data);
+      setIsLoading(false);
+    }
+    fetchTodos();
+  }, []);
 
-  const { values, errors, isSubmitting, handleChange, handleSubmit, reset } =
-    useForm<CreateTodoInput & Record<string, unknown>>({
-      initialValues: { title: "", description: "" },
-      validate: (v) => {
-        const errs: Partial<Record<string, string>> = {};
-        if (!v.title || (v.title as string).trim() === "") {
-          errs.title = "タイトルを入力してください";
-        }
-        return errs;
-      },
-      onSubmit: async (v) => {
-        await onAdd({
-          title: v.title as string,
-          description: v.description as string,
-        });
-        reset();
-        // 追加後にタイトル欄にフォーカスを戻す（useRef: Ch07）
-        titleRef.current?.focus();
-      },
+  const handleAdd = async (input: CreateTodoInput) => {
+    const res = await fetch("/api/todos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
     });
+    if (!res.ok) throw new Error("追加に失敗しました");
+    const newTodo: Todo = await res.json();
+    setTodos((prev) => [newTodo, ...prev]);
+  };
 
-  const onFormSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    handleSubmit();
+  const handleToggle = async (id: string) => {
+    const target = todos.find((t) => t.id === id);
+    if (!target) return;
+
+    const res = await fetch(`/api/todos/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: !target.completed }),
+    });
+    if (!res.ok) throw new Error("更新に失敗しました");
+    const updated: Todo = await res.json();
+    setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
+  };
+
+  const handleDelete = async (id: string) => {
+    const res = await fetch(`/api/todos/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("削除に失敗しました");
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // 👇 追加：フィルター処理
+  const filteredTodos = todos.filter((todo) => {
+    if (filter === "active") return !todo.completed;
+    if (filter === "completed") return todo.completed;
+    return true;
+  });
+
+  // 👇 追加：カウント
+  const counts = {
+    all: todos.length,
+    active: todos.filter((t) => !t.completed).length,
+    completed: todos.filter((t) => t.completed).length,
   };
 
   return (
-    <form onSubmit={onFormSubmit} style={{ marginBottom: "24px" }}>
-      <h2 style={{ fontSize: "18px", marginBottom: "12px" }}>新しい Todo を追加</h2>
+    <div>
+      <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
+      <TodoForm onAdd={handleAdd} />
+      
+      {/* 👇 追加 */}
+      <TodoFilter current={filter} counts={counts} onChange={setFilter} />
 
-      <div style={{ marginBottom: "8px" }}>
-        <input
-          ref={titleRef}
-          type="text"
-          placeholder="タイトル（必須）"
-          value={values.title as string}
-          onChange={(e) => handleChange("title", e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: errors.title ? "2px solid #e74c3c" : "1px solid #ccc",
-            borderRadius: "4px",
-            fontSize: "16px",
-            boxSizing: "border-box",
-          }}
-        />
-        {errors.title && (
-          <p style={{ color: "#e74c3c", fontSize: "13px", marginTop: "4px" }}>
-            {errors.title}
-          </p>
-        )}
-      </div>
-
-      <div style={{ marginBottom: "8px" }}>
-        <input
-          type="text"
-          placeholder="説明（任意）"
-          value={values.description as string}
-          onChange={(e) => handleChange("description", e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-            fontSize: "16px",
-            boxSizing: "border-box",
-          }}
-        />
-      </div>
-
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        style={{
-          padding: "10px 24px",
-          backgroundColor: "#2ecc71",
-          color: "#ffffff",
-          border: "none",
-          borderRadius: "4px",
-          fontSize: "16px",
-          cursor: isSubmitting ? "not-allowed" : "pointer",
-          opacity: isSubmitting ? 0.6 : 1,
-        }}
-      >
-        {isSubmitting ? "追加中..." : "追加する"}
-      </button>
-    </form>
+      {isLoading ? (
+        <p style={{ textAlign: "center", color: "#888" }}>読み込み中...</p>
+      ) : (
+        <TodoList todos={filteredTodos} onToggle={handleToggle} onDelete={handleDelete} />
+      )}
+    </div>
   );
 }
 ```
 
-### 7-4. TodoItem（1件の Todo 表示）
+## ✅ ステップ4の動作確認
 
-`src/components/TodoItem.tsx`:
+- ✅ 「すべて」ボタン → 全ての Todo が表示
+- ✅ 「未完了」ボタン → 未完了のみ表示
+- ✅ 「完了済み」ボタン → 完了済みのみ表示
+- ✅ 各ボタンの件数が正しい
+
+**動作確認できたら次へ！**
+
+---
+
+# ステップ5: 詳細ページと編集機能
+
+最後に、詳細表示と編集機能を追加します。
+
+## 5-1. API に GET を追加
+
+`src/app/api/todos/[id]/route.ts` に追記:
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { Todo, UpdateTodoInput } from "@/types";
+import initialTodos from "@/data/todos.json";
+
+let todos: Todo[] = [...initialTodos];
+
+// 👇 追加
+export function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return params.then(({ id }) => {
+    const todo = todos.find((t) => t.id === id);
+    if (!todo) {
+      return NextResponse.json({ error: "Todo が見つかりません" }, { status: 404 });
+    }
+    return NextResponse.json(todo);
+  });
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const index = todos.findIndex((t) => t.id === id);
+
+  if (index === -1) {
+    return NextResponse.json({ error: "Todo が見つかりません" }, { status: 404 });
+  }
+
+  const body: UpdateTodoInput = await request.json();
+  const updated: Todo = {
+    ...todos[index],
+    ...(body.title !== undefined && { title: body.title.trim() }),
+    ...(body.description !== undefined && { description: body.description.trim() }),
+    ...(body.completed !== undefined && { completed: body.completed }),
+    updatedAt: new Date().toISOString(),
+  };
+
+  todos[index] = updated;
+  return NextResponse.json(updated);
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const index = todos.findIndex((t) => t.id === id);
+
+  if (index === -1) {
+    return NextResponse.json({ error: "Todo が見つかりません" }, { status: 404 });
+  }
+
+  todos.splice(index, 1);
+  return NextResponse.json({ message: "削除しました" });
+}
+```
+
+## 5-2. TodoItem にリンクを追加
+
+`src/components/TodoItem.tsx` を更新:
 
 ```tsx
 "use client";
 
-import Link from "next/link";
+import Link from "next/link";  // 👈 追加
 import { Todo } from "@/types";
 
 interface TodoItemProps {
@@ -755,7 +1072,6 @@ export default function TodoItem({ todo, onToggle, onDelete }: TodoItemProps) {
         backgroundColor: todo.completed ? "#f8f9fa" : "#ffffff",
       }}
     >
-      {/* 完了チェックボックス */}
       <input
         type="checkbox"
         checked={todo.completed}
@@ -763,8 +1079,8 @@ export default function TodoItem({ todo, onToggle, onDelete }: TodoItemProps) {
         style={{ width: "20px", height: "20px", cursor: "pointer" }}
       />
 
-      {/* タイトル・説明 */}
       <div style={{ flex: 1 }}>
+        {/* 👇 Link で囲む */}
         <Link
           href={`/todos/${todo.id}`}
           style={{
@@ -777,17 +1093,12 @@ export default function TodoItem({ todo, onToggle, onDelete }: TodoItemProps) {
           {todo.title}
         </Link>
         {todo.description && (
-          <p style={{
-            margin: "4px 0 0",
-            fontSize: "13px",
-            color: "#888",
-          }}>
+          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#888" }}>
             {todo.description}
           </p>
         )}
       </div>
 
-      {/* 削除ボタン */}
       <button
         onClick={() => {
           if (window.confirm("本当に削除しますか？")) {
@@ -811,51 +1122,7 @@ export default function TodoItem({ todo, onToggle, onDelete }: TodoItemProps) {
 }
 ```
 
-### 7-5. TodoList（リスト表示）
-
-`src/components/TodoList.tsx`:
-
-```tsx
-"use client";
-
-import { Todo } from "@/types";
-import TodoItem from "./TodoItem";
-
-interface TodoListProps {
-  todos: Todo[];
-  onToggle: (id: string) => void;
-  onDelete: (id: string) => void;
-}
-
-export default function TodoList({ todos, onToggle, onDelete }: TodoListProps) {
-  if (todos.length === 0) {
-    return (
-      <p style={{ textAlign: "center", color: "#888", padding: "32px 0" }}>
-        Todo がありません
-      </p>
-    );
-  }
-
-  return (
-    <div style={{
-      border: "1px solid #ddd",
-      borderRadius: "8px",
-      overflow: "hidden",
-    }}>
-      {todos.map((todo) => (
-        <TodoItem
-          key={todo.id}
-          todo={todo}
-          onToggle={onToggle}
-          onDelete={onDelete}
-        />
-      ))}
-    </div>
-  );
-}
-```
-
-### 7-6. TodoEditForm（編集フォーム）
+## 5-3. TodoEditForm を作る
 
 `src/components/TodoEditForm.tsx`:
 
@@ -887,10 +1154,7 @@ export default function TodoEditForm({ todo, onSave, onCancel }: TodoEditFormPro
 
     setIsSaving(true);
     try {
-      await onSave(todo.id, {
-        title: title.trim(),
-        description: description.trim(),
-      });
+      await onSave(todo.id, { title: title.trim(), description: description.trim() });
     } catch {
       setError("保存に失敗しました");
     } finally {
@@ -901,10 +1165,7 @@ export default function TodoEditForm({ todo, onSave, onCancel }: TodoEditFormPro
   return (
     <form onSubmit={handleSubmit}>
       <div style={{ marginBottom: "12px" }}>
-        <label
-          htmlFor="edit-title"
-          style={{ display: "block", fontWeight: "bold", marginBottom: "4px" }}
-        >
+        <label htmlFor="edit-title" style={{ display: "block", fontWeight: "bold", marginBottom: "4px" }}>
           タイトル
         </label>
         <input
@@ -924,18 +1185,11 @@ export default function TodoEditForm({ todo, onSave, onCancel }: TodoEditFormPro
             boxSizing: "border-box",
           }}
         />
-        {error && (
-          <p style={{ color: "#e74c3c", fontSize: "13px", marginTop: "4px" }}>
-            {error}
-          </p>
-        )}
+        {error && <p style={{ color: "#e74c3c", fontSize: "13px", marginTop: "4px" }}>{error}</p>}
       </div>
 
       <div style={{ marginBottom: "16px" }}>
-        <label
-          htmlFor="edit-description"
-          style={{ display: "block", fontWeight: "bold", marginBottom: "4px" }}
-        >
+        <label htmlFor="edit-description" style={{ display: "block", fontWeight: "bold", marginBottom: "4px" }}>
           説明
         </label>
         <textarea
@@ -993,112 +1247,7 @@ export default function TodoEditForm({ todo, onSave, onCancel }: TodoEditFormPro
 }
 ```
 
----
-
-## 8. ページを組み立てる 【Next.js】
-
-### 8-1. ルートレイアウトにヘッダーを追加
-
-`src/app/layout.tsx`:
-
-```tsx
-import type { Metadata } from "next";
-import Header from "@/components/Header";
-
-export const metadata: Metadata = {
-  title: "Todo App",
-  description: "React + TypeScript + Next.js 学習用 Todo アプリ",
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="ja">
-      <body style={{ margin: 0, fontFamily: "sans-serif" }}>
-        <Header />
-        <main style={{ maxWidth: "720px", margin: "0 auto", padding: "24px" }}>
-          {children}
-        </main>
-      </body>
-    </html>
-  );
-}
-```
-
-### 8-2. トップページ（ / → /todos へリダイレクト）
-
-`src/app/page.tsx`:
-
-```tsx
-import { redirect } from "next/navigation";
-
-export default function Home() {
-  redirect("/todos");
-}
-```
-
-### 8-3. Todo 一覧ページ
-
-`src/app/todos/page.tsx`:
-
-```tsx
-"use client";
-
-import { useTodos } from "@/hooks/useTodos";
-import TodoForm from "@/components/TodoForm";
-import TodoList from "@/components/TodoList";
-import TodoFilter from "@/components/TodoFilter";
-
-export default function TodosPage() {
-  const {
-    todos,
-    counts,
-    isLoading,
-    error,
-    filter,
-    setFilter,
-    addTodo,
-    toggleTodo,
-    deleteTodo,
-  } = useTodos();
-
-  return (
-    <div>
-      <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
-
-      {/* 新規追加フォーム */}
-      <TodoForm onAdd={addTodo} />
-
-      {/* フィルター */}
-      <TodoFilter current={filter} counts={counts} onChange={setFilter} />
-
-      {/* エラー表示 */}
-      {error && (
-        <p style={{
-          color: "#e74c3c",
-          padding: "12px",
-          backgroundColor: "#fdf0ef",
-          borderRadius: "4px",
-        }}>
-          ⚠️ {error}
-        </p>
-      )}
-
-      {/* ローディング or リスト */}
-      {isLoading ? (
-        <p style={{ textAlign: "center", color: "#888" }}>読み込み中...</p>
-      ) : (
-        <TodoList todos={todos} onToggle={toggleTodo} onDelete={deleteTodo} />
-      )}
-    </div>
-  );
-}
-```
-
-### 8-4. Todo 詳細・編集ページ
+## 5-4. 詳細ページを作る
 
 `src/app/todos/[id]/page.tsx`:
 
@@ -1121,7 +1270,6 @@ export default function TodoDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  // データ取得
   useEffect(() => {
     async function fetchTodo() {
       try {
@@ -1145,7 +1293,6 @@ export default function TodoDetailPage() {
     fetchTodo();
   }, [id]);
 
-  // 更新処理
   const handleSave = useCallback(async (_id: string, input: UpdateTodoInput) => {
     const res = await fetch(`/api/todos/${id}`, {
       method: "PATCH",
@@ -1158,7 +1305,6 @@ export default function TodoDetailPage() {
     setIsEditing(false);
   }, [id]);
 
-  // 削除処理
   const handleDelete = useCallback(async () => {
     if (!window.confirm("本当に削除しますか？")) return;
     const res = await fetch(`/api/todos/${id}`, { method: "DELETE" });
@@ -1166,60 +1312,36 @@ export default function TodoDetailPage() {
     router.push("/todos");
   }, [id, router]);
 
-  // --- ローディング ---
   if (isLoading) {
     return <p style={{ textAlign: "center", color: "#888" }}>読み込み中...</p>;
   }
 
-  // --- エラー ---
   if (error || !todo) {
     return (
       <div style={{ textAlign: "center", padding: "32px" }}>
-        <p style={{ color: "#e74c3c", fontSize: "18px" }}>
-          {error || "Todo が見つかりません"}
-        </p>
-        <Link href="/todos" style={{ color: "#3498db" }}>
-          ← 一覧に戻る
-        </Link>
+        <p style={{ color: "#e74c3c", fontSize: "18px" }}>{error || "Todo が見つかりません"}</p>
+        <Link href="/todos" style={{ color: "#3498db" }}>← 一覧に戻る</Link>
       </div>
     );
   }
 
-  // --- 編集モード ---
   if (isEditing) {
     return (
       <div>
         <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo を編集</h1>
-        <TodoEditForm
-          todo={todo}
-          onSave={handleSave}
-          onCancel={() => setIsEditing(false)}
-        />
+        <TodoEditForm todo={todo} onSave={handleSave} onCancel={() => setIsEditing(false)} />
       </div>
     );
   }
 
-  // --- 詳細表示 ---
   return (
     <div>
-      <Link
-        href="/todos"
-        style={{ color: "#3498db", textDecoration: "none", fontSize: "14px" }}
-      >
+      <Link href="/todos" style={{ color: "#3498db", textDecoration: "none", fontSize: "14px" }}>
         ← 一覧に戻る
       </Link>
 
-      <div style={{
-        marginTop: "16px",
-        padding: "24px",
-        border: "1px solid #ddd",
-        borderRadius: "8px",
-      }}>
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}>
+      <div style={{ marginTop: "16px", padding: "24px", border: "1px solid #ddd", borderRadius: "8px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <h1 style={{ fontSize: "24px", margin: 0 }}>{todo.title}</h1>
           <span
             style={{
@@ -1235,9 +1357,7 @@ export default function TodoDetailPage() {
         </div>
 
         {todo.description && (
-          <p style={{ color: "#555", lineHeight: 1.6, marginTop: "16px" }}>
-            {todo.description}
-          </p>
+          <p style={{ color: "#555", lineHeight: 1.6, marginTop: "16px" }}>{todo.description}</p>
         )}
 
         <div style={{ marginTop: "16px", fontSize: "13px", color: "#999" }}>
@@ -1281,32 +1401,21 @@ export default function TodoDetailPage() {
 }
 ```
 
-### 8-5. ローディング表示
+## ✅ ステップ5の動作確認
 
-`src/app/todos/loading.tsx`:
-
-```tsx
-export default function Loading() {
-  return (
-    <div style={{ textAlign: "center", padding: "48px" }}>
-      <p style={{ color: "#888", fontSize: "18px" }}>読み込み中...</p>
-    </div>
-  );
-}
-```
+- ✅ Todo のタイトルをクリック → 詳細ページに遷移
+- ✅ 「編集する」ボタン → 編集フォームが表示
+- ✅ タイトル・説明を編集して「保存する」→ 更新される
+- ✅ 「キャンセル」→ 編集がキャンセルされる
+- ✅ 「削除する」→ 削除されて一覧に戻る
 
 ---
 
-## 9. 動作確認
+# 🎉 完成！
 
-```bash
-# Docker コンテナ内で開発サーバーを起動
-docker compose exec app npm run dev
-```
+すべての機能が動作したら **Todo アプリ完成** です！
 
-ブラウザで `http://localhost:3000` にアクセスすると、`/todos` にリダイレクトされます。
-
-### 確認チェックリスト
+## 動作確認チェックリスト
 
 | # | 操作 | 期待される動作 |
 |---|------|---------------|
@@ -1323,7 +1432,7 @@ docker compose exec app npm run dev
 
 ---
 
-## 10. 技術ふりかえりマップ
+# 技術ふりかえりマップ
 
 ここまでの実装で使った技術を、章と紐づけて整理しましょう。
 
@@ -1334,20 +1443,11 @@ src/types/index.ts
 src/data/todos.json
   └── モックデータ ................................ Ch10 API Routes
 
-src/lib/todoStore.ts
-  └── モジュール共有パターン ...................... JavaScript / Node.js
-
 src/app/api/todos/route.ts
   └── GET, POST, NextResponse .................... Ch10 API Routes (Next.js)
 
 src/app/api/todos/[id]/route.ts
   └── 動的ルート, PATCH, DELETE .................. Ch08 ルーティング + Ch10
-
-src/hooks/useTodos.ts
-  └── useState, useEffect, useCallback ........... Ch05, Ch06, Ch07, Ch12
-
-src/hooks/useForm.ts
-  └── ジェネリクス, useCallback .................. Ch02, Ch07, Ch12
 
 src/components/Header.tsx
   └── Server Component, Link ..................... Ch09, Ch08
@@ -1356,7 +1456,7 @@ src/components/TodoFilter.tsx
   └── Props, map, 条件付きスタイル ............... Ch04, Ch03
 
 src/components/TodoForm.tsx
-  └── useRef, フォーム, バリデーション ........... Ch07, Ch11
+  └── フォーム, バリデーション ................... Ch05, Ch11
 
 src/components/TodoItem.tsx
   └── Props, イベント, Link ...................... Ch04, Ch05, Ch08
@@ -1368,7 +1468,7 @@ src/components/TodoEditForm.tsx
   └── 制御コンポーネント, フォーム ............... Ch05, Ch11
 
 src/app/todos/page.tsx
-  └── Client Component, カスタムHook使用 ......... Ch09, Ch12
+  └── Client Component, useState, useEffect ...... Ch05, Ch06, Ch09
 
 src/app/todos/[id]/page.tsx
   └── useParams, useRouter, useEffect ............ Ch08, Ch06
@@ -1376,76 +1476,196 @@ src/app/todos/[id]/page.tsx
 
 ---
 
-## 11. 追加チャレンジ（やってみよう）
+# 追加チャレンジ（やってみよう）
 
 基本の Todo アプリが動いたら、以下の機能追加に挑戦してみましょう。
 
-### チャレンジ 1: 期限（Due Date）を追加
+### チャレンジ 1: カスタム Hooks でリファクタリング
+
+Chapter 12 で学んだカスタム Hooks を使って、`todos/page.tsx` のロジックを切り出す。
+
+**`src/hooks/useTodos.ts` を作成:**
 
 ```typescript
-// types/index.ts に追加
-export interface Todo {
-  // ...既存プロパティ
-  dueDate?: string;  // ISO 8601 形式（オプショナル）
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { Todo, CreateTodoInput, TodoFilter } from "@/types";
+
+export function useTodos() {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState<TodoFilter>("all");
+
+  const fetchTodos = useCallback(async () => {
+    setIsLoading(true);
+    const res = await fetch("/api/todos");
+    const data: Todo[] = await res.json();
+    setTodos(data);
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchTodos();
+  }, [fetchTodos]);
+
+  const addTodo = useCallback(async (input: CreateTodoInput) => {
+    const res = await fetch("/api/todos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error("追加に失敗しました");
+    const newTodo: Todo = await res.json();
+    setTodos((prev) => [newTodo, ...prev]);
+  }, []);
+
+  const toggleTodo = useCallback(async (id: string) => {
+    const target = todos.find((t) => t.id === id);
+    if (!target) return;
+
+    const res = await fetch(`/api/todos/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: !target.completed }),
+    });
+    if (!res.ok) throw new Error("更新に失敗しました");
+    const updated: Todo = await res.json();
+    setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
+  }, [todos]);
+
+  const deleteTodo = useCallback(async (id: string) => {
+    const res = await fetch(`/api/todos/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("削除に失敗しました");
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const filteredTodos = todos.filter((todo) => {
+    if (filter === "active") return !todo.completed;
+    if (filter === "completed") return todo.completed;
+    return true;
+  });
+
+  const counts = {
+    all: todos.length,
+    active: todos.filter((t) => !t.completed).length,
+    completed: todos.filter((t) => t.completed).length,
+  };
+
+  return {
+    todos: filteredTodos,
+    counts,
+    isLoading,
+    filter,
+    setFilter,
+    addTodo,
+    toggleTodo,
+    deleteTodo,
+  };
 }
 ```
 
-- フォームに日付入力（`<input type="date">`）を追加
-- 期限切れの Todo は赤色で表示
-- 期限順でソートするフィルターを追加
+**ページが超シンプルに:**
 
-### チャレンジ 2: カテゴリ（タグ）を追加
+```tsx
+"use client";
 
-```typescript
-export interface Todo {
-  // ...既存プロパティ
-  tags: string[];
+import { useTodos } from "@/hooks/useTodos";
+import TodoForm from "@/components/TodoForm";
+import TodoList from "@/components/TodoList";
+import TodoFilter from "@/components/TodoFilter";
+
+export default function TodosPage() {
+  const { todos, counts, isLoading, filter, setFilter, addTodo, toggleTodo, deleteTodo } = useTodos();
+
+  return (
+    <div>
+      <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
+      <TodoForm onAdd={addTodo} />
+      <TodoFilter current={filter} counts={counts} onChange={setFilter} />
+      {isLoading ? (
+        <p style={{ textAlign: "center", color: "#888" }}>読み込み中...</p>
+      ) : (
+        <TodoList todos={todos} onToggle={toggleTodo} onDelete={deleteTodo} />
+      )}
+    </div>
+  );
 }
 ```
 
-- タグの追加・削除 UI を実装
-- タグでフィルタリングする機能を追加
+### チャレンジ 2: データ共有の改善
+
+現状、`route.ts` と `[id]/route.ts` でデータが共有されていません。  
+共有ストアを作って改善しましょう。
+
+**`src/lib/todoStore.ts` を作成:**
+
+```typescript
+import { Todo } from "@/types";
+import initialTodos from "@/data/todos.json";
+
+let todos: Todo[] = [...initialTodos];
+
+export function getTodos(): Todo[] {
+  return todos;
+}
+
+export function setTodos(newTodos: Todo[]): void {
+  todos = newTodos;
+}
+```
+
+**各 API で使う:**
+
+```typescript
+import { getTodos, setTodos } from "@/lib/todoStore";
+
+export function GET() {
+  const todos = getTodos();
+  // ...
+}
+```
 
 ### チャレンジ 3: ローカルストレージに保存
 
-- Ch12 で作った `useLocalStorage` を使う
-- API Routes の代わりに、ブラウザのローカルストレージにデータを保存
-- ページをリロードしてもデータが消えないことを確認
+API の代わりに、ブラウザのローカルストレージにデータを保存する。
 
-### チャレンジ 4: ダークモード対応
+### チャレンジ 4: 期限（Due Date）を追加
 
-- Ch07 で学んだ `useContext` で ThemeContext を作成
-- ヘッダーにテーマ切り替えボタンを設置
-- 全コンポーネントのスタイルをテーマに応じて切り替え
+```typescript
+export interface Todo {
+  // ...既存プロパティ
+  dueDate?: string;
+}
+```
+
+- フォームに日付入力を追加
+- 期限切れの Todo は赤色で表示
 
 ---
 
-## 12. 学習のまとめ
+# 学習のまとめ
 
-### 身についたこと
-
-この Todo アプリを完成させた時点で、以下の力が身についています。
+## 身についたこと
 
 | スキル | 具体的にできること |
 |--------|-------------------|
 | **TypeScript で型を定義** | interface, type, ユーティリティ型を使いこなせる |
 | **React コンポーネント設計** | 適切な粒度で分割し、Props で繋げられる |
-| **Hooks を活用** | useState / useEffect / useRef / useCallback を使い分けられる |
-| **カスタム Hooks** | ロジックを切り出して再利用可能にできる |
+| **Hooks を活用** | useState / useEffect を使い分けられる |
 | **Next.js ルーティング** | ファイルベースルーティングと動的ルートを実装できる |
 | **API Routes** | RESTful な API を Next.js 内に実装できる |
 | **フォーム実装** | バリデーション付きのフォームを作れる |
 
-### 現場コードを読むための心得
+## 現場コードを読むための心得
 
-1. **まずファイル構成を見る** → どこに何があるか把握する（Ch01）
-2. **型定義を見る** → データの形を理解する（Ch02）
-3. **page.tsx から読む** → ページの全体像を掴む（Ch08, Ch09）
-4. **コンポーネントを辿る** → 画面の部品を理解する（Ch03, Ch04）
-5. **Hooks を読む** → 状態管理とロジックを理解する（Ch05-Ch07, Ch12）
-6. **API Routes を見る** → サーバー側の処理を理解する（Ch10）
+1. **まずファイル構成を見る** → どこに何があるか把握する
+2. **型定義を見る** → データの形を理解する
+3. **page.tsx から読む** → ページの全体像を掴む
+4. **コンポーネントを辿る** → 画面の部品を理解する
+5. **API Routes を見る** → サーバー側の処理を理解する
 
-### 次のステップ
+## 次のステップ
 
 - **CSS フレームワーク**: Tailwind CSS を導入してスタイリングを効率化
 - **状態管理ライブラリ**: Zustand や Jotai でグローバル状態管理
@@ -1456,10 +1676,14 @@ export interface Todo {
 ---
 
 お疲れさまでした！🎉  
-全 14 章を通じて、React + TypeScript + Next.js の基礎を一通り学びました。  
+**段階的に実装しながら Todo アプリを完成**させました。
+
+各ステップで動作確認しながら進めたので、どの部分がどう動いているか理解しやすかったはずです。  
 ここで作った Todo アプリは、現場のプロジェクトの縮小版です。  
+
 **このコードを自在に読み書きできれば、現場のコードも怖くありません。**
 
 ---
 
 [← Chapter 12: カスタム Hooks](./12-custom-hooks.md) | [目次に戻る](./README.md)
+

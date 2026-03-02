@@ -1,25 +1,27 @@
 import type { Metadata } from "next";
-import { ThemeProvider } from "@/contexts/ThemeContext";
-import "./globals.css";
+import Header from "@/components/Header";
 
 export const metadata: Metadata = {
-  title: "React Training",
-  description: "React + TypeScript の学習",
+  title: "Todo App",
+  description: "React + TypeScript + Next.js 学習用 Todo アプリ",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="ja">
-      <body>
-        {/* 【React】ThemeProvider で囲むと、配下のどのコンポーネントからでも
-            useTheme() でテーマ情報にアクセスできる */}
-        <ThemeProvider>
+      <body style={{ margin: 0, fontFamily: "sans-serif" }}>
+
+        {/* ヘッダーコンポーネントの表示 */}
+        <Header />
+
+        {/* メインコンテンツ（app/page.tsxの内容がchildren部分に表示される） */}
+        <main style={{ maxWidth: "720px", margin: "0 auto", padding: "24px" }}>
           {children}
-        </ThemeProvider>
+        </main>
       </body>
     </html>
   );
