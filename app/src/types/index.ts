@@ -13,9 +13,9 @@ export interface Todo {
 export type TodoFilter = "all" | "active" | "completed";
 
 
-// // 新規作成時の入力（id, createdAt, updatedAt はサーバーが付与）
-// // Pick<...> は特定のプロパティだけを抜き取るユーティリティ型
-// export type CreateTodoInput = Pick<Todo, "title" | "description">;
+// 新規作成時の入力（id, createdAt, updatedAt はサーバーが付与）
+// Pick<...> は特定のプロパティだけを抜き取るユーティリティ型
+export type CreateTodoInput = Pick<Todo, "title" | "description">;
 
 // // 更新時の入力（部分更新を許容）
 // // Partial<...> はすべてのプロパティをオプショナルにするユーティリティ型
