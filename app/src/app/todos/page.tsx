@@ -13,6 +13,8 @@ export default function TodosPage() {
   const [isLoading, setIsLoading] = useState(true); // 初期値は true（読み込み中）
 
   useEffect(() => {
+
+    // Todoを取得する関数
     // ① 非同期関数を定義
     async function fetchTodos() {
       const res = await fetch("/api/todos");
@@ -37,6 +39,28 @@ export default function TodosPage() {
     setTodos((prev) => [newTodo, ...prev]);
   };
 
+    // Todo の完了状態を切り替える関数
+  const handleToggle = async (id: string) => {
+    const target = todos.find((t) => t.id === id);
+    if (!target) return;
+
+    const res = await fetch(`/api/todos/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: !target.completed }),
+    });
+    if (!res.ok) throw new Error("更新に失敗しました");
+    const updated: Todo = await res.json();
+    setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
+  };
+
+  // Todo を削除する関数
+  const handleDelete = async (id: string) => {
+    const res = await fetch(`/api/todos/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("削除に失敗しました");
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+  };
+
   return (
     <div>
       <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
@@ -48,7 +72,7 @@ export default function TodosPage() {
       {isLoading ? (
         <p style={{ textAlign: "center", color: "#888" }}>読み込み中...</p>
       ) : (
-        <TodoList todos={todos} />
+        <TodoList todos={todos} onToggle={handleToggle} onDelete={handleDelete} />
       )}
     </div>
   );

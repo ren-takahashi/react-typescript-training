@@ -18,8 +18,10 @@ export type TodoFilter = "all" | "active" | "completed";
 export type CreateTodoInput = Pick<Todo, "title" | "description">;
 
 // // 更新時の入力（部分更新を許容）
-// // Partial<...> はすべてのプロパティをオプショナルにするユーティリティ型
-// export type UpdateTodoInput = Partial<Pick<Todo, "title" | "description" | "completed">>;
+// Partial<...> はすべてのプロパティをオプショナルにするユーティリティ型
+export type UpdateTodoInput = Partial<Pick<Todo, "title" | "description" | "completed">>;
+
+
 // // NOTE: PickとかPartialというのは、TypeScript にもともと用意されているユーティリティ型です。
 // // node_modules/typescript/lib/lib.es5.d.ts などの TypeScript の型定義ファイルに定義されているユーティリティ型です。
 // // Pick は特定のプロパティだけを抜き取るための型で、
