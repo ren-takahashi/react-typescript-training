@@ -829,7 +829,7 @@ Todo を絞り込む機能を追加します。
 
 ## 4-1. TodoFilter コンポーネントを作る
 
-`src/components/TodoFilter.tsx`:
+`src/components/TodoFilter.tsx`:(新規作成)
 
 ```tsx
 "use client";
@@ -951,7 +951,7 @@ export default function TodosPage() {
       <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
       <TodoForm onAdd={handleAdd} />
       
-      {/* 👇 追加 */}
+      {/* フィルター */}
       <TodoFilter current={filter} counts={counts} onChange={setFilter} />
 
       {isLoading ? (

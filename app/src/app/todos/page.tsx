@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CreateTodoInput, Todo } from "@/types";
+import { Todo, CreateTodoInput, TodoFilter as FilterType } from "@/types";
 import TodoList from "@/components/TodoList";
 import TodoForm from "@/components/TodoForm";
+import TodoFilter from "@/components/TodoFilter";
 
 export default function TodosPage() {
   // useState で状態を管理
@@ -11,6 +12,7 @@ export default function TodosPage() {
   // isLoading: データの読み込み中かどうかを管理する状態
   const [todos, setTodos] = useState<Todo[]>([]); // 初期値は空の配列
   const [isLoading, setIsLoading] = useState(true); // 初期値は true（読み込み中）
+  const [filter, setFilter] = useState<FilterType>("all"); // フィルターの状態を管理（初期値は "all"）
 
   useEffect(() => {
 
@@ -61,6 +63,20 @@ export default function TodosPage() {
     setTodos((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // フィルター処理
+  const filteredTodos = todos.filter((todo) => {
+    if (filter === "active") return !todo.completed;
+    if (filter === "completed") return todo.completed;
+    return true;
+  });
+
+  // カウント処理
+  const counts = {
+    all: todos.length,
+    active: todos.filter((t) => !t.completed).length,
+    completed: todos.filter((t) => t.completed).length,
+  };
+
   return (
     <div>
       <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
@@ -72,7 +88,10 @@ export default function TodosPage() {
       {isLoading ? (
         <p style={{ textAlign: "center", color: "#888" }}>読み込み中...</p>
       ) : (
-        <TodoList todos={todos} onToggle={handleToggle} onDelete={handleDelete} />
+        <>
+          <TodoFilter current={filter} counts={counts} onChange={setFilter} />
+          <TodoList todos={filteredTodos} onToggle={handleToggle} onDelete={handleDelete} />
+        </>
       )}
     </div>
   );
