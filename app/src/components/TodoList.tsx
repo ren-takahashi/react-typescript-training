@@ -1,6 +1,7 @@
 "use client";
 
 import { Todo } from "@/types";
+import TodoItem from "./TodoItem";
 
 interface TodoListProps {
   todos: Todo[];
@@ -16,33 +17,12 @@ export default function TodoList({ todos, onToggle, onDelete }: TodoListProps) {
   return (
     <div style={{ border: "1px solid #ddd", borderRadius: "8px", overflow: "hidden" }}>
       {todos.map((todo) => (
-        // Todo アイテムのコンテナ
-        <div
+        <TodoItem
           key={todo.id}
-          style={{
-            padding: "12px 16px",
-            borderBottom: "1px solid #eee",
-            backgroundColor: todo.completed ? "#f8f9fa" : "#ffffff",
-          }}
-        >
-          {/* タイトル */}
-          <div style={{
-            textDecoration: todo.completed ? "line-through" : "none",
-            color: todo.completed ? "#999" : "#333",
-            fontSize: "16px",
-            fontWeight: "bold",
-          }}>
-            {todo.title}
-          </div>
-
-          {/* 説明文がある場合のみ表示 */}
-          {todo.description && (
-            <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#888" }}>
-              {todo.description}
-            </p>
-          )}
-
-        </div>
+          todo={todo}
+          onToggle={onToggle}
+          onDelete={onDelete}
+        />
       ))}
     </div>
   );

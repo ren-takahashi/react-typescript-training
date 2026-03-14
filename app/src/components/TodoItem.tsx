@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Todo } from "@/types";
 
 interface TodoItemProps {
@@ -28,7 +29,8 @@ export default function TodoItem({ todo, onToggle, onDelete }: TodoItemProps) {
       />
 
       <div style={{ flex: 1 }}>
-        <div
+        <Link
+          href={`/todos/${todo.id}`}
           style={{
             textDecoration: todo.completed ? "line-through" : "none",
             color: todo.completed ? "#999" : "#333",
@@ -37,7 +39,7 @@ export default function TodoItem({ todo, onToggle, onDelete }: TodoItemProps) {
           }}
         >
           {todo.title}
-        </div>
+        </Link>
         {todo.description && (
           <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#888" }}>
             {todo.description}

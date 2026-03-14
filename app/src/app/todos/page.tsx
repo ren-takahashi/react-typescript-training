@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { Todo, CreateTodoInput, TodoFilter as FilterType } from "@/types";
-import TodoList from "@/components/TodoList";
 import TodoForm from "@/components/TodoForm";
+import TodoList from "@/components/TodoList";
 import TodoFilter from "@/components/TodoFilter";
 
-export default function TodosPage() {
-  // useState で状態を管理
+export default function TodosPage() {  // useState で状態を管理
   // todos: Todo の配列を管理する状態
   // isLoading: データの読み込み中かどうかを管理する状態
   const [todos, setTodos] = useState<Todo[]>([]); // 初期値は空の配列
@@ -15,7 +14,7 @@ export default function TodosPage() {
   const [filter, setFilter] = useState<FilterType>("all"); // フィルターの状態を管理（初期値は "all"）
 
   useEffect(() => {
-
+    
     // Todoを取得する関数
     // ① 非同期関数を定義
     async function fetchTodos() {
@@ -41,7 +40,7 @@ export default function TodosPage() {
     setTodos((prev) => [newTodo, ...prev]);
   };
 
-    // Todo の完了状態を切り替える関数
+      // Todo の完了状態を切り替える関数
   const handleToggle = async (id: string) => {
     const target = todos.find((t) => t.id === id);
     if (!target) return;
@@ -62,7 +61,7 @@ export default function TodosPage() {
     if (!res.ok) throw new Error("削除に失敗しました");
     setTodos((prev) => prev.filter((t) => t.id !== id));
   };
-
+  
   // フィルター処理
   const filteredTodos = todos.filter((todo) => {
     if (filter === "active") return !todo.completed;
@@ -80,7 +79,7 @@ export default function TodosPage() {
   return (
     <div>
       <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
-
+      
       {/* TodoForm コンポーネントを表示 */}
       <TodoForm onAdd={handleAdd} />
 

@@ -19,7 +19,6 @@ export function GET() {
   return NextResponse.json(sorted);
 }
 
-
 /**
  * POST /api/todos
  * 新しい Todo を作成する API
