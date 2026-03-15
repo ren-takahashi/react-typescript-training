@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Todo, UpdateTodoInput } from "@/types";
-import initialTodos from "@/data/todos.json";
-
-let todos: Todo[] = [...initialTodos];
+// import initialTodos from "@/data/todos.json";
+import { getTodos, setTodos } from "@/lib/todoStore";
 
 // GET /api/todos/[id] - 1件取得
 export function GET(
@@ -10,6 +9,7 @@ export function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return params.then(({ id }) => {
+    const todos = getTodos();
     const todo = todos.find((t) => t.id === id);
     if (!todo) {
       return NextResponse.json({ error: "Todo が見つかりません" }, { status: 404 });
@@ -24,6 +24,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const todos = getTodos();
   const index = todos.findIndex((t) => t.id === id);
 
   if (index === -1) {
@@ -40,6 +41,7 @@ export async function PATCH(
   };
 
   todos[index] = updated;
+  setTodos(todos);
   return NextResponse.json(updated);
 }
 
@@ -49,6 +51,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const todos = getTodos();
   const index = todos.findIndex((t) => t.id === id);
 
   if (index === -1) {
@@ -56,5 +59,6 @@ export async function DELETE(
   }
 
   todos.splice(index, 1);
+  setTodos(todos);
   return NextResponse.json({ message: "削除しました" });
 }

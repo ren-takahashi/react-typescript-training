@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CreateTodoInput, Todo } from "@/types";
-import initialTodos from "@/data/todos.json";
+// import initialTodos from "@/data/todos.json";
+import { getTodos, setTodos } from "@/lib/todoStore";
 
-// DBの代わりとしてメモリ上にデータを保持（サーバー再起動でリセットされる）
-let todos: Todo[] = [...initialTodos];
+const todos = getTodos();
 
 /**
  * GET /api/todos
@@ -50,5 +50,6 @@ export async function POST(request: NextRequest) {
   };
 
   todos.push(newTodo);
+  setTodos(todos);
   return NextResponse.json(newTodo, { status: 201 });
 }

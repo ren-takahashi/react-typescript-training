@@ -1628,19 +1628,576 @@ export function GET() {
 
 ### チャレンジ 3: ローカルストレージに保存
 
-API の代わりに、ブラウザのローカルストレージにデータを保存する。
+API の代わりに、ブラウザのローカルストレージにデータを保存する。  
+サーバーが不要になり、ページをリロードしてもデータが消えない。
 
-### チャレンジ 4: 期限（Due Date）を追加
+> **ポイント**: Next.js は SSR（サーバーサイドレンダリング）を行うため、  
+> `localStorage` は**ブラウザでのみ存在**する。サーバー側で実行されると `ReferenceError` になる。  
+> `useEffect` の中で使うことで、クライアント側でのみ実行されることが保証できる。
+
+#### 3-1. 汎用 `useLocalStorage` フックを作る
+
+`src/hooks/useLocalStorage.ts`:
 
 ```typescript
-export interface Todo {
-  // ...既存プロパティ
-  dueDate?: string;
+"use client";
+
+import { useState, useEffect } from "react";
+
+export function useLocalStorage<T>(key: string, initialValue: T) {
+  // SSR 対策: 初期値はそのまま使い、クライアントでは localStorage から読む
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
+
+  useEffect(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item !== null) {
+        setStoredValue(JSON.parse(item));
+      }
+    } catch (error) {
+      console.error("localStorage の読み込み失敗:", error);
+    }
+  }, [key]);
+
+  const setValue = (value: T | ((prev: T) => T)) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error("localStorage への書き込み失敗:", error);
+    }
+  };
+
+  return [storedValue, setValue] as const;
 }
 ```
 
-- フォームに日付入力を追加
-- 期限切れの Todo は赤色で表示
+**ポイント解説:**
+- `useState<T>(initialValue)` → 型パラメータ `T` で任意の型に対応（ジェネリクス）
+- `useEffect` 内で読み込む → SSR 時はスキップ、クライアント初回レンダー後に読む
+- `as const` → `[storedValue, setValue]` をタプルとして型推論させる
+
+#### 3-2. `useTodos` を localStorage 版に書き換える
+
+`src/hooks/useTodos.ts` を以下に**全て書き換え**:
+
+```typescript
+"use client";
+
+import { useCallback, useMemo } from "react";
+import { Todo, CreateTodoInput, TodoFilter, UpdateTodoInput } from "@/types";
+import { useLocalStorage } from "./useLocalStorage";
+import initialTodos from "@/data/todos.json";
+
+export function useTodos() {
+  const [todos, setTodos] = useLocalStorage<Todo[]>("todos", [...initialTodos]);
+  const [filter, setFilter] = useLocalStorage<TodoFilter>("todos-filter", "all");
+
+  const addTodo = useCallback((input: CreateTodoInput) => {
+    const now = new Date().toISOString();
+    const newTodo: Todo = {
+      id: String(Date.now()),
+      title: input.title.trim(),
+      description: input.description?.trim() ?? "",
+      completed: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setTodos((prev) => [newTodo, ...prev]);
+  }, [setTodos]);
+
+  const toggleTodo = useCallback((id: string) => {
+    setTodos((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? { ...t, completed: !t.completed, updatedAt: new Date().toISOString() }
+          : t
+      )
+    );
+  }, [setTodos]);
+
+  const deleteTodo = useCallback((id: string) => {
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+  }, [setTodos]);
+
+  const updateTodo = useCallback((id: string, input: UpdateTodoInput) => {
+    setTodos((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              ...(input.title !== undefined && { title: input.title.trim() }),
+              ...(input.description !== undefined && { description: input.description.trim() }),
+              ...(input.completed !== undefined && { completed: input.completed }),
+              updatedAt: new Date().toISOString(),
+            }
+          : t
+      )
+    );
+  }, [setTodos]);
+
+  const filteredTodos = useMemo(() => todos.filter((todo) => {
+    if (filter === "active") return !todo.completed;
+    if (filter === "completed") return todo.completed;
+    return true;
+  }), [todos, filter]);
+
+  const counts = useMemo(() => ({
+    all: todos.length,
+    active: todos.filter((t) => !t.completed).length,
+    completed: todos.filter((t) => t.completed).length,
+  }), [todos]);
+
+  return {
+    todos: filteredTodos,
+    allTodos: todos,
+    counts,
+    filter,
+    setFilter,
+    addTodo,
+    toggleTodo,
+    deleteTodo,
+    updateTodo,
+  };
+}
+```
+
+**API 版との違い:**
+| | API 版 | localStorage 版 |
+|--|--------|----------------|
+| データ取得 | `fetch("/api/todos")` | `localStorage.getItem` |
+| データ更新 | `fetch(url, { method: "PATCH" })` | `setState` → 自動保存 |
+| 非同期処理 | 必要（`async/await`）| 不要（同期処理） |
+| サーバー | 必要 | 不要 |
+
+#### 3-3. ページを更新する
+
+`src/app/todos/page.tsx` を更新（`useTodos` フックを使う版に切り替え）:
+
+```tsx
+"use client";
+
+import { useTodos } from "@/hooks/useTodos";
+import TodoForm from "@/components/TodoForm";
+import TodoList from "@/components/TodoList";
+import TodoFilter from "@/components/TodoFilter";
+
+export default function TodosPage() {
+  const { todos, counts, filter, setFilter, addTodo, toggleTodo, deleteTodo } = useTodos();
+
+  // localStorage 版は非同期でないので onAdd の型を合わせる
+  const handleAdd = async (input: Parameters<typeof addTodo>[0]) => {
+    addTodo(input);
+  };
+
+  return (
+    <div>
+      <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo 一覧</h1>
+      <TodoForm onAdd={handleAdd} />
+      <TodoFilter current={filter} counts={counts} onChange={setFilter} />
+      <TodoList todos={todos} onToggle={toggleTodo} onDelete={deleteTodo} />
+    </div>
+  );
+}
+```
+
+#### 3-4. 詳細ページを更新する
+
+`src/app/todos/[id]/page.tsx` では、`useTodos` の `allTodos` と `updateTodo` を使う:
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { UpdateTodoInput } from "@/types";
+import TodoEditForm from "@/components/TodoEditForm";
+import { useTodos } from "@/hooks/useTodos";
+
+export default function TodoDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params.id as string;
+  const [isEditing, setIsEditing] = useState(false);
+
+  const { allTodos, updateTodo, deleteTodo } = useTodos();
+  const todo = allTodos.find((t) => t.id === id);
+
+  const handleSave = async (_id: string, input: UpdateTodoInput) => {
+    updateTodo(id, input);
+    setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    if (!window.confirm("本当に削除しますか？")) return;
+    deleteTodo(id);
+    router.push("/todos");
+  };
+
+  if (!todo) {
+    return (
+      <div style={{ textAlign: "center", padding: "32px" }}>
+        <p style={{ color: "#e74c3c", fontSize: "18px" }}>Todo が見つかりません</p>
+        <Link href="/todos" style={{ color: "#3498db" }}>← 一覧に戻る</Link>
+      </div>
+    );
+  }
+
+  if (isEditing) {
+    return (
+      <div>
+        <h1 style={{ fontSize: "24px", marginBottom: "24px" }}>Todo を編集</h1>
+        <TodoEditForm todo={todo} onSave={handleSave} onCancel={() => setIsEditing(false)} />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Link href="/todos" style={{ color: "#3498db", textDecoration: "none", fontSize: "14px" }}>
+        ← 一覧に戻る
+      </Link>
+      <div style={{ marginTop: "16px", padding: "24px", border: "1px solid #ddd", borderRadius: "8px" }}>
+        <h1 style={{ fontSize: "24px" }}>{todo.title}</h1>
+        {todo.description && <p style={{ color: "#555" }}>{todo.description}</p>}
+        <div style={{ marginTop: "24px", display: "flex", gap: "8px" }}>
+          <button onClick={() => setIsEditing(true)} style={{ padding: "10px 24px", backgroundColor: "#3498db", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+            編集する
+          </button>
+          <button onClick={handleDelete} style={{ padding: "10px 24px", backgroundColor: "#e74c3c", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+            削除する
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+> ここでチャレンジ 2 との大きな違いに注目。API 版は一覧と詳細でデータが分離していたが、  
+> localStorage 版は同じ `useTodos` フックを使うので**データが共有される**。  
+> 詳細ページで編集すると一覧にも反映される。
+
+#### ✅ チャレンジ3の動作確認
+
+- ✅ ページをリロードしても Todo が消えない
+- ✅ 詳細ページで編集 → 一覧に戻ると反映されている
+- ✅ ブラウザの DevTools → Application → Local Storage で保存データを確認できる
+
+---
+
+### チャレンジ 4: 期限（Due Date）を追加
+
+Todo に期限日を追加し、期限切れの Todo を赤色で目立たせる。
+
+#### 4-1. 型定義を更新する
+
+`src/types/index.ts` の `Todo` インターフェースに `dueDate` を追加:
+
+```typescript
+export interface Todo {
+  id: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  dueDate?: string;          // 👈 追加（任意項目なので ?）
+  createdAt: string;
+  updatedAt: string;
+}
+
+// CreateTodoInput にも追加
+export type CreateTodoInput = Pick<Todo, "title" | "description" | "dueDate">;
+
+// UpdateTodoInput にも追加
+export type UpdateTodoInput = Partial<Pick<Todo, "title" | "description" | "completed" | "dueDate">>;
+```
+
+#### 4-2. モックデータを更新する
+
+`src/data/todos.json` にサンプルの期限日を追加（2件だけ設定し、1件は意図的に期限切れにする）:
+
+```json
+[
+  {
+    "id": "1",
+    "title": "Next.js のチュートリアルを完了する",
+    "description": "公式ドキュメントの App Router セクションを一通り読む",
+    "completed": false,
+    "dueDate": "2024-01-20",
+    "createdAt": "2024-01-15T09:00:00.000Z",
+    "updatedAt": "2024-01-15T09:00:00.000Z"
+  },
+  {
+    "id": "2",
+    "title": "TypeScript の型定義を練習する",
+    "description": "interface と type の使い分けを理解し、ユーティリティ型を試す",
+    "completed": true,
+    "dueDate": "2024-01-18",
+    "createdAt": "2024-01-14T10:30:00.000Z",
+    "updatedAt": "2024-01-15T08:00:00.000Z"
+  },
+  {
+    "id": "3",
+    "title": "React Hooks を復習する",
+    "description": "useState, useEffect, useRef, useMemo, useCallback を一通り書く",
+    "completed": false,
+    "createdAt": "2024-01-16T14:00:00.000Z",
+    "updatedAt": "2024-01-16T14:00:00.000Z"
+  }
+]
+```
+
+#### 4-3. API を更新する
+
+`src/app/api/todos/route.ts` の POST ハンドラーで `dueDate` を受け取る:
+
+```typescript
+export async function POST(request: NextRequest) {
+  const body: CreateTodoInput = await request.json();
+
+  if (!body.title || body.title.trim() === "") {
+    return NextResponse.json({ error: "タイトルは必須です" }, { status: 400 });
+  }
+
+  const now = new Date().toISOString();
+  const newTodo: Todo = {
+    id: String(Date.now()),
+    title: body.title.trim(),
+    description: body.description?.trim() ?? "",
+    completed: false,
+    ...(body.dueDate && { dueDate: body.dueDate }),  // 👈 追加
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  todos.push(newTodo);
+  return NextResponse.json(newTodo, { status: 201 });
+}
+```
+
+`src/app/api/todos/[id]/route.ts` の PATCH ハンドラーにも追加:
+
+```typescript
+const updated: Todo = {
+  ...todos[index],
+  ...(body.title !== undefined && { title: body.title.trim() }),
+  ...(body.description !== undefined && { description: body.description.trim() }),
+  ...(body.completed !== undefined && { completed: body.completed }),
+  ...(body.dueDate !== undefined && { dueDate: body.dueDate }),  // 👈 追加
+  updatedAt: new Date().toISOString(),
+};
+```
+
+#### 4-4. 期限判定のユーティリティを作る
+
+`src/lib/dateUtils.ts` を新規作成:
+
+```typescript
+// 今日の日付（時間なし）と比較するためのヘルパー
+export function isOverdue(dueDate: string | undefined, completed: boolean): boolean {
+  if (!dueDate || completed) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(dueDate) < today;
+}
+
+export function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("ja-JP", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+```
+
+#### 4-5. TodoItem を更新する
+
+`src/components/TodoItem.tsx` に期限表示と期限切れスタイルを追加:
+
+```tsx
+"use client";
+
+import Link from "next/link";
+import { Todo } from "@/types";
+import { isOverdue, formatDate } from "@/lib/dateUtils";
+
+interface TodoItemProps {
+  todo: Todo;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+
+export default function TodoItem({ todo, onToggle, onDelete }: TodoItemProps) {
+  const overdue = isOverdue(todo.dueDate, todo.completed);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        padding: "12px 16px",
+        borderBottom: "1px solid #eee",
+        backgroundColor: overdue ? "#fff5f5" : todo.completed ? "#f8f9fa" : "#ffffff",  // 👈 期限切れは薄赤
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={todo.completed}
+        onChange={() => onToggle(todo.id)}
+        style={{ width: "20px", height: "20px", cursor: "pointer" }}
+      />
+
+      <div style={{ flex: 1 }}>
+        <Link
+          href={`/todos/${todo.id}`}
+          style={{
+            textDecoration: todo.completed ? "line-through" : "none",
+            color: overdue ? "#c0392b" : todo.completed ? "#999" : "#333",  // 👈 期限切れは赤文字
+            fontSize: "16px",
+            fontWeight: "bold",
+          }}
+        >
+          {todo.title}
+        </Link>
+        {todo.description && (
+          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#888" }}>
+            {todo.description}
+          </p>
+        )}
+        {/* 👇 期限表示 */}
+        {todo.dueDate && (
+          <p style={{ margin: "4px 0 0", fontSize: "12px", color: overdue ? "#c0392b" : "#888" }}>
+            {overdue ? "⚠️ 期限切れ: " : "期限: "}
+            {formatDate(todo.dueDate)}
+          </p>
+        )}
+      </div>
+
+      <button
+        onClick={() => {
+          if (window.confirm("本当に削除しますか？")) {
+            onDelete(todo.id);
+          }
+        }}
+        style={{
+          padding: "6px 12px",
+          backgroundColor: "#e74c3c",
+          color: "#ffffff",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer",
+          fontSize: "13px",
+        }}
+      >
+        削除
+      </button>
+    </div>
+  );
+}
+```
+
+#### 4-6. TodoForm を更新する
+
+`src/components/TodoForm.tsx` に日付入力を追加:
+
+```tsx
+// handleSubmit 内の onAdd 呼び出しを更新
+await onAdd({ title, description, dueDate: dueDate || undefined });
+```
+
+フォームに `dueDate` のステートと入力欄を追加:
+
+```tsx
+const [dueDate, setDueDate] = useState("");
+
+// ... JSX の説明入力欄の下に追加 ...
+<div style={{ marginBottom: "8px" }}>
+  <input
+    type="date"
+    value={dueDate}
+    onChange={(e) => setDueDate(e.target.value)}
+    min={new Date().toISOString().split("T")[0]}  // 今日以降のみ選択可
+    style={{
+      width: "100%",
+      padding: "10px",
+      border: "1px solid #ccc",
+      borderRadius: "4px",
+      fontSize: "16px",
+      boxSizing: "border-box",
+    }}
+  />
+  <p style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>期限日（任意）</p>
+</div>
+```
+
+また `handleSubmit` 内でリセット時に `setDueDate("")` も追加する。
+
+#### 4-7. TodoEditForm を更新する
+
+`src/components/TodoEditForm.tsx` にも同様に `dueDate` の編集欄を追加:
+
+```tsx
+const [dueDate, setDueDate] = useState(todo.dueDate ?? "");
+
+// handleSubmit 内の onSave 呼び出しを更新
+await onSave(todo.id, {
+  title: title.trim(),
+  description: description.trim(),
+  dueDate: dueDate || undefined,
+});
+
+// JSX に追加（説明欄の下）
+<div style={{ marginBottom: "16px" }}>
+  <label htmlFor="edit-dueDate" style={{ display: "block", fontWeight: "bold", marginBottom: "4px" }}>
+    期限日
+  </label>
+  <input
+    id="edit-dueDate"
+    type="date"
+    value={dueDate}
+    onChange={(e) => setDueDate(e.target.value)}
+    style={{
+      width: "100%",
+      padding: "10px",
+      border: "1px solid #ccc",
+      borderRadius: "4px",
+      fontSize: "16px",
+      boxSizing: "border-box",
+    }}
+  />
+</div>
+```
+
+#### 4-8. 詳細ページに期限を表示する
+
+`src/app/todos/[id]/page.tsx` の詳細表示部分に期限情報を追加:
+
+```tsx
+import { isOverdue, formatDate } from "@/lib/dateUtils";
+
+// 詳細カードの中、作成日の上あたりに追加
+{todo.dueDate && (
+  <p style={{
+    marginTop: "12px",
+    color: isOverdue(todo.dueDate, todo.completed) ? "#c0392b" : "#555",
+    fontWeight: isOverdue(todo.dueDate, todo.completed) ? "bold" : "normal",
+  }}>
+    {isOverdue(todo.dueDate, todo.completed) ? "⚠️ 期限切れ: " : "期限: "}
+    {formatDate(todo.dueDate)}
+  </p>
+)}
+```
+
+#### ✅ チャレンジ4の動作確認
+
+- ✅ 新しい Todo 追加時に期限日を入力できる
+- ✅ 期限が設定された Todo には期限日が表示される
+- ✅ 期限切れの Todo（未完了のみ）が赤色で表示される
+- ✅ 完了済みの期限切れ Todo は赤くならない（`isOverdue` で `completed` チェック済み）
+- ✅ 詳細ページでも期限日の編集・表示ができる
 
 ---
 
